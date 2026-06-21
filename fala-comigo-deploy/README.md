@@ -113,3 +113,4 @@ The app is built to expand. Come back to Claude and ask for:
 - Cultural notes and tips
 
 The architecture supports it — we just add more data to the same app.
+
