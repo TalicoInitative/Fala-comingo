@@ -199,7 +199,8 @@ export function buildBiaPrompt(completedUnits, allWords) {
 
   const recentTopics = topics.slice(-10).join(", ");
   const grammarList = [...new Set(grammar)].join(", ");
-  const wordSample = allWords.slice(0, 150).map(w => `${w[0]}(${w[1]})`).join(", ");
+  // Send ALL learned words (up to 400) so Bia knows exactly what's available
+  const wordList = allWords.slice(0, 400).map(w => `${w[0]}(${w[1]})`).join(", ");
 
   return `You are Bia, a warm Brazilian Portuguese tutor. Stage: ${stage} (${unitCount} units completed).
 
@@ -209,14 +210,137 @@ TOPICS you can discuss (based on completed units): ${recentTopics}
 
 GRAMMAR the student knows: ${grammarList}
 
-VOCABULARY SAMPLE: ${wordSample}${allWords.length > 150 ? ` ...and ${allWords.length - 150} more words` : ''}
+ALLOWED VOCABULARY — use ONLY these words in your Portuguese replies:
+${wordList}
 
-RULES:
-- Use ONLY grammar structures listed above. Don't use subjunctive if they haven't learned it.
+STRICT RULES:
+- CRITICAL: Your Portuguese response MUST use ONLY words from the ALLOWED VOCABULARY list above. Do NOT use any Portuguese word that is not in that list. If you need a word not in the list, use the English word instead and teach it.
+- Use ONLY grammar structures listed above. Don't use subjunctive if they haven't learned it. Don't use past tense if they haven't learned it.
+- For BEGINNER stage: use maximum 3-5 word sentences. Ask yes/no questions only. Stick to greetings and basic nouns.
 - Prioritize recently learned topics to reinforce new vocabulary.
-- If they write in English, respond in Portuguese with translation.
+- If they write in English, respond in simple Portuguese (using only allowed words) with translation.
 - If they make a grammar mistake, gently correct it using the "fix" field.
-- Reference topics from their completed units to connect learning.
-- Reply ONLY raw JSON: {"pt":"Portuguese reply","en":"English translation","tip":"grammar/culture tip or null","fix":"correction of their mistake or null"}
+- Reply ONLY raw JSON: {"pt":"Portuguese reply using ONLY allowed words","en":"English translation","tip":"grammar/culture tip or null","fix":"correction of their mistake or null"}
 - Brazilian Portuguese only (not European).`;
 }
+
+// Bia scenario modes — specific situations to practice
+export const BIA_SCENARIOS = [
+  {id:"restaurant",icon:"🍽️",name:"At the Restaurant",desc:"Order food, ask about the menu, pay the bill",prompt:"You are a waiter at a Brazilian restaurant. The student just sat down. Take their order, suggest dishes, discuss the menu. Use only vocabulary they know.",reqUnits:8},
+  {id:"airport",icon:"✈️",name:"At the Airport",desc:"Check in, find your gate, handle delays",prompt:"You are an airport attendant in São Paulo. Help the student check in, find their gate, and handle a flight delay. Use only vocabulary they know.",reqUnits:42},
+  {id:"doctor",icon:"🏥",name:"At the Doctor",desc:"Describe symptoms, understand instructions",prompt:"You are a doctor in Brazil. The student is your patient. Ask about symptoms, give a diagnosis, prescribe treatment. Use only vocabulary they know.",reqUnits:12},
+  {id:"shopping",icon:"🛍️",name:"Going Shopping",desc:"Try on clothes, ask about sizes, bargain",prompt:"You are a vendor at a Brazilian market. Help the student find clothes, discuss sizes and prices, and negotiate. Use only vocabulary they know.",reqUnits:6},
+  {id:"friends",icon:"🤝",name:"Making Friends",desc:"Introduce yourself, make plans, chat casually",prompt:"You are a friendly Brazilian meeting the student at a party. Make small talk, ask about their life, make plans to hang out. Use only vocabulary they know.",reqUnits:2},
+  {id:"work",icon:"💼",name:"Job Interview",desc:"Answer questions, discuss experience",prompt:"You are interviewing the student for a job in Brazil. Ask about experience, skills, and availability. Be professional but friendly. Use only vocabulary they know.",reqUnits:49},
+  {id:"hotel",icon:"🏨",name:"At the Hotel",desc:"Check in, ask about amenities, report issues",prompt:"You are a hotel receptionist in Rio. Help the student check in, explain amenities, and handle a room complaint. Use only vocabulary they know.",reqUnits:17},
+  {id:"taxi",icon:"🚕",name:"In a Taxi",desc:"Give directions, chat with the driver",prompt:"You are a chatty taxi driver in São Paulo. Ask where the student wants to go, talk about the city, recommend places. Use only vocabulary they know.",reqUnits:9},
+];
+
+// Cultural tips — one per day, rotated
+export const CULTURAL_TIPS = [
+  {tip:"Brazilians greet friends with a kiss on the cheek (one in São Paulo, two in Rio). Even men greet women this way.",cat:"🤝 Greetings"},
+  {tip:"'Jeitinho brasileiro' means finding a creative workaround. It's a core cultural concept — Brazilians are masters of improvising solutions.",cat:"🧠 Culture"},
+  {tip:"Thumbs up (👍) is the Brazilian 'OK.' It's used way more than in English — to say thanks, agree, or just acknowledge.",cat:"🤙 Gestures"},
+  {tip:"Lunch is the biggest meal in Brazil, not dinner. Many businesses close for a long lunch break (almoço) from 12-2pm.",cat:"🍽️ Food"},
+  {tip:"Brazilians LOVE diminutives. 'Cafezinho' (little coffee) isn't about size — it's affection. Everything gets an '-inho' or '-inha'.",cat:"💬 Language"},
+  {tip:"Never give someone an even number of flowers in Brazil — even numbers are for funerals. Always odd!",cat:"🎁 Customs"},
+  {tip:"'Saudade' has no English translation. It's the longing for something or someone you love. Brazilians consider it the most beautiful word.",cat:"💚 Emotion"},
+  {tip:"Brazilians say 'Bom dia' (good morning), 'Boa tarde' (good afternoon), and 'Boa noite' (good evening) based on time of day. Using the wrong one is noticeable!",cat:"🤝 Greetings"},
+  {tip:"The 'OK' sign (👌) is OFFENSIVE in Brazil. It's equivalent to the middle finger. Use thumbs up instead!",cat:"🤙 Gestures"},
+  {tip:"Feijoada on Saturday is a tradition. Families and restaurants serve this black bean stew with rice, farofa, and orange slices.",cat:"🍽️ Food"},
+  {tip:"'Você' is used everywhere in Brazil, but some regions (like Rio Grande do Sul) use 'tu.' In São Paulo, it's always 'você.'",cat:"💬 Language"},
+  {tip:"Brazilians are famously late. '8 o'clock' often means 8:30 or 9. It's not rude — it's just Brazilian time!",cat:"⏰ Culture"},
+  {tip:"Personal space is smaller in Brazil. People stand closer, touch arms while talking, and are very physically expressive.",cat:"🤝 Social"},
+  {tip:"Açaí in Brazil is eaten as a thick bowl with granola, NOT as a smoothie. And it's savory in some northern regions!",cat:"🍽️ Food"},
+  {tip:"Carnival isn't just in Rio! Salvador, Recife, and Olinda each have completely different styles of celebration.",cat:"🎭 Culture"},
+  {tip:"'Obrigado' (men) vs 'Obrigada' (women) — the ending agrees with the SPEAKER, not the person being thanked.",cat:"💬 Language"},
+  {tip:"Brazilian addresses often use 'sem número' (no number). Many houses don't have street numbers!",cat:"🏠 Daily Life"},
+  {tip:"In Brazil, 'education' (educação) means 'manners' more than schooling. Calling someone 'mal-educado' means rude, not uneducated.",cat:"💬 Language"},
+  {tip:"Brazilians wave goodbye with the palm facing IN (towards themselves), not out. The opposite of the American wave.",cat:"🤙 Gestures"},
+  {tip:"CPF is like a social security number in Brazil. You need it for EVERYTHING — even buying a phone or returning an item.",cat:"📋 Daily Life"},
+  {tip:"The phrase 'Deus quiser' (God willing) is used constantly. Making plans? 'Amanhã, se Deus quiser!' It's not deeply religious — just cultural.",cat:"🙏 Culture"},
+  {tip:"Brazilian Portuguese sounds VERY different from European Portuguese. Brazilians joke that they can't understand Portuguese people!",cat:"💬 Language"},
+  {tip:"Churrasco (barbecue) is serious business. The 'churrasqueiro' (grill master) is a respected role, and the meat is salted with coarse salt only.",cat:"🍽️ Food"},
+  {tip:"WhatsApp is the primary communication tool in Brazil — more than texting, email, or calling. Businesses run on WhatsApp.",cat:"📱 Modern"},
+  {tip:"Brazilians don't say 'I'm hot' as 'Eu sou quente' — that means 'I'm attractive/sexy.' Say 'Estou com calor' instead!",cat:"⚠️ Mistakes"},
+  {tip:"The word 'legal' in Brazilian Portuguese means 'cool/awesome,' not 'legal/lawful.' 'Que legal!' = 'How cool!'",cat:"💬 Language"},
+  {tip:"Pix (instant payment) replaced cash and cards in Brazil almost overnight. Everyone from street vendors to dentists accepts Pix.",cat:"💰 Modern"},
+  {tip:"In Brazil, the ground floor is 'térreo,' and what Americans call the '2nd floor' is the '1st floor' (primeiro andar).",cat:"🏢 Daily Life"},
+  {tip:"Novelas (soap operas) are a cultural phenomenon. The final episode of a popular novela can get 60+ million viewers.",cat:"📺 Culture"},
+  {tip:"Brigadeiro (chocolate truffle) is named after a Brazilian military officer. It's THE birthday party dessert — no party is complete without it.",cat:"🍽️ Food"},
+];
+
+// False Friends — Portuguese words that look like English but mean something different
+export const FALSE_FRIENDS = [
+  {pt:"Excitado",looks:"Excited",actually:"Sexually aroused",correct:"Animado / Empolgado",danger:5,example:"Estou animado com a viagem! (I'm excited about the trip!)"},
+  {pt:"Puxe",looks:"Push",actually:"Pull",correct:"Empurre (Push)",danger:5,example:"Puxe a porta! (Pull the door!)"},
+  {pt:"Constipado",looks:"Constipated",actually:"Having a cold",correct:"Prisão de ventre (Constipated)",danger:4,example:"Estou constipado, preciso de lenço. (I have a cold, need tissues.)"},
+  {pt:"Pretender",looks:"Pretend",actually:"To intend / plan",correct:"Fingir (Pretend)",danger:4,example:"Pretendo viajar em julho. (I plan to travel in July.)"},
+  {pt:"Educado",looks:"Educated",actually:"Polite / well-mannered",correct:"Instruído / Culto (Educated)",danger:4,example:"Ele é muito educado. (He is very polite.)"},
+  {pt:"Parente",looks:"Parent",actually:"Relative (any family member)",correct:"Pai/Mãe (Parent)",danger:4,example:"Tenho muitos parentes no Sul. (I have many relatives in the South.)"},
+  {pt:"Assistir",looks:"Assist",actually:"To watch / attend",correct:"Ajudar (Assist)",danger:3,example:"Vou assistir o jogo. (I'm going to watch the game.)"},
+  {pt:"Realizar",looks:"Realize",actually:"To accomplish / achieve",correct:"Perceber (Realize)",danger:3,example:"Realizei meu sonho! (I achieved my dream!)"},
+  {pt:"Resumo",looks:"Resume",actually:"Summary",correct:"Retomar (Resume) / Currículo (CV)",danger:3,example:"Veja o resumo do jogo. (See the game summary.)"},
+  {pt:"Costume",looks:"Costume",actually:"Habit / custom",correct:"Fantasia (Costume)",danger:3,example:"Tenho o costume de correr de manhã. (I have the habit of running in the morning.)"},
+  {pt:"Fábrica",looks:"Fabric",actually:"Factory",correct:"Tecido (Fabric)",danger:3,example:"Trabalho na fábrica. (I work at the factory.)"},
+  {pt:"Atualmente",looks:"Actually",actually:"Currently / nowadays",correct:"Na verdade (Actually)",danger:3,example:"Atualmente moro no Brasil. (Currently I live in Brazil.)"},
+  {pt:"Jornal",looks:"Journal",actually:"Newspaper / TV news",correct:"Diário (Journal/diary)",danger:2,example:"Leio o jornal todo dia. (I read the newspaper every day.)"},
+  {pt:"Colégio",looks:"College",actually:"School (elementary/high)",correct:"Faculdade (College/university)",danger:2,example:"Meu filho está no colégio. (My son is at school.)"},
+  {pt:"Eventualmente",looks:"Eventually",actually:"Occasionally",correct:"Finalmente (Eventually)",danger:2,example:"Eventualmente eu corro. (I occasionally run.)"},
+];
+
+// Ser vs Estar drills
+export const SER_ESTAR_DRILLS = [
+  {sentence:"Eu ___ brasileiro.",answer:"sou",verb:"ser",why:"Nationality is permanent — use ser."},
+  {sentence:"Eu ___ cansado hoje.",answer:"estou",verb:"estar",why:"Tiredness is temporary — use estar."},
+  {sentence:"Ela ___ bonita.",answer:"é",verb:"ser",why:"Beauty as a characteristic — use ser."},
+  {sentence:"Ela ___ bonita hoje!",answer:"está",verb:"estar",why:"Looking good TODAY (temporary) — use estar."},
+  {sentence:"O café ___ quente.",answer:"está",verb:"estar",why:"Temperature is a current state — use estar."},
+  {sentence:"O Rio ___ no Brasil.",answer:"fica/é",verb:"ser",why:"Location of a city (permanent) — use ser or ficar."},
+  {sentence:"Ele ___ médico.",answer:"é",verb:"ser",why:"Profession is identity — use ser."},
+  {sentence:"A festa ___ na casa da Ana.",answer:"é",verb:"ser",why:"Events use ser for location."},
+  {sentence:"Nós ___ felizes aqui.",answer:"estamos",verb:"estar",why:"Feeling happy (current emotion) — use estar."},
+  {sentence:"A comida ___ deliciosa!",answer:"está",verb:"estar",why:"Tasting good right now — use estar."},
+  {sentence:"Ele ___ alto e magro.",answer:"é",verb:"ser",why:"Physical traits (permanent) — use ser."},
+  {sentence:"Eu ___ com fome.",answer:"estou",verb:"estar",why:"Hunger is temporary — use estar."},
+  {sentence:"Que horas ___?",answer:"são",verb:"ser",why:"Time always uses ser."},
+  {sentence:"A porta ___ aberta.",answer:"está",verb:"estar",why:"Open/closed is a current state — use estar."},
+  {sentence:"Eles ___ irmãos.",answer:"são",verb:"ser",why:"Family relationships are permanent — use ser."},
+  {sentence:"Eu ___ perdido!",answer:"estou",verb:"estar",why:"Being lost is temporary — use estar."},
+  {sentence:"Hoje ___ segunda-feira.",answer:"é",verb:"ser",why:"Days of the week use ser."},
+  {sentence:"O livro ___ de madeira.",answer:"é",verb:"ser",why:"Material composition is permanent — use ser."},
+  {sentence:"A Maria ___ doente.",answer:"está",verb:"estar",why:"Illness is a temporary condition — use estar."},
+  {sentence:"Nós ___ estudantes.",answer:"somos",verb:"ser",why:"Being a student is identity — use ser."},
+];
+
+// Achievement badges — unlockable milestones
+export const ACHIEVEMENTS = [
+  {id:"first_unit",icon:"🌱",name:"Primeira Palavra",desc:"Complete your first unit",check:p=>(p.units||[]).length>=1},
+  {id:"ten_units",icon:"🔟",name:"Dez Unidades",desc:"Complete 10 units",check:p=>(p.units||[]).length>=10},
+  {id:"fifty_units",icon:"🌟",name:"Metade do Caminho",desc:"Complete 50 units",check:p=>(p.units||[]).length>=50},
+  {id:"hundred_units",icon:"💎",name:"Centenário",desc:"Complete 100 units",check:p=>(p.units||[]).length>=100},
+  {id:"all_units",icon:"🇧🇷",name:"Brasileiro!",desc:"Complete all 151 units",check:p=>(p.units||[]).length>=151},
+  {id:"words_100",icon:"💯",name:"100 Palavras",desc:"Learn 100 words",check:p=>(p.units||[]).length>=10},
+  {id:"words_500",icon:"📚",name:"500 Palavras",desc:"Learn 500 words",check:p=>(p.units||[]).length>=50},
+  {id:"words_1000",icon:"🏆",name:"Mil Palavras",desc:"Learn 1,000 words",check:p=>(p.units||[]).length>=100},
+  {id:"words_1510",icon:"👑",name:"Vocabulário Completo",desc:"Learn all 1,510 words",check:p=>(p.units||[]).length>=151},
+  {id:"streak_3",icon:"🔥",name:"Três Dias",desc:"3-day streak",check:p=>(p.streak||0)>=3},
+  {id:"streak_7",icon:"🔥",name:"Semana de Fogo",desc:"7-day streak",check:p=>(p.streak||0)>=7},
+  {id:"streak_30",icon:"🔥",name:"Mês de Fogo",desc:"30-day streak",check:p=>(p.streak||0)>=30},
+  {id:"streak_100",icon:"💪",name:"Imparável",desc:"100-day streak",check:p=>(p.streak||0)>=100},
+  {id:"xp_100",icon:"⭐",name:"Primeiro XP",desc:"Earn 100 XP",check:p=>(p.xp||0)>=100},
+  {id:"xp_1000",icon:"⭐",name:"Mil XP",desc:"Earn 1,000 XP",check:p=>(p.xp||0)>=1000},
+  {id:"xp_5000",icon:"🌟",name:"XP Master",desc:"Earn 5,000 XP",check:p=>(p.xp||0)>=5000},
+  {id:"exercises_100",icon:"📝",name:"Exercitador",desc:"Complete 100 exercises",check:p=>(p.exDone||0)>=100},
+  {id:"exercises_500",icon:"📝",name:"Praticante",desc:"Complete 500 exercises",check:p=>(p.exDone||0)>=500},
+  {id:"exercises_1000",icon:"🎯",name:"Dedicado",desc:"Complete 1,000 exercises",check:p=>(p.exDone||0)>=1000},
+  {id:"accuracy_90",icon:"🎯",name:"Precisão",desc:"90%+ accuracy (50+ exercises)",check:p=>(p.exDone||0)>=50&&(p.exOk||0)/(p.exDone||1)>=0.9},
+  {id:"level_5",icon:"📈",name:"Nível 5",desc:"Unlock Level 5",check:p=>(p.levels||[]).length>=5},
+  {id:"level_10",icon:"📈",name:"Nível 10",desc:"Unlock Level 10",check:p=>(p.levels||[]).length>=10},
+  {id:"level_15",icon:"🏅",name:"Todos os Níveis",desc:"Unlock all 15 levels",check:p=>(p.levels||[]).length>=15},
+  {id:"cefr_a2",icon:"🌍",name:"A2 Alcançado",desc:"Reach CEFR A2",check:p=>(p.units||[]).length>=30},
+  {id:"cefr_b1",icon:"🌍",name:"B1 Alcançado",desc:"Reach CEFR B1",check:p=>(p.units||[]).length>=60},
+  {id:"time_1h",icon:"⏰",name:"Uma Hora",desc:"Study for 1 hour total",check:p=>(p.time||0)>=3600},
+  {id:"time_10h",icon:"⏰",name:"Dez Horas",desc:"Study for 10 hours total",check:p=>(p.time||0)>=36000},
+  {id:"chat_first",icon:"💬",name:"Primeira Conversa",desc:"Chat with Bia",check:p=>(p.chatCount||0)>=1},
+];
