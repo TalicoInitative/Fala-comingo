@@ -87,21 +87,39 @@ export function playSound(type) {
   }
 }
 
+// TTS availability tracker
+let ttsAvailable = null; // null=unknown, true=works, false=broken
+
+export function isTTSAvailable() { return ttsAvailable !== false; }
+
 export function speakPT(text, onStart, onEnd) {
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "pt-BR";
-  u.rate = 0.85;
-  const go = () => {
-    const voices = window.speechSynthesis.getVoices();
-    const br = voices.find(v => v.lang === "pt-BR") || voices.find(v => v.lang.startsWith("pt"));
-    if (br) u.voice = br;
-    u.onstart = () => onStart?.();
-    u.onend = () => onEnd?.();
-    u.onerror = () => onEnd?.();
-    window.speechSynthesis.speak(u);
-  };
-  window.speechSynthesis.getVoices().length
-    ? go()
-    : window.speechSynthesis.addEventListener("voiceschanged", go, { once: true });
+  try {
+    if (!window.speechSynthesis) { ttsAvailable = false; onEnd?.(); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "pt-BR";
+    u.rate = 0.85;
+    // Timeout — if speech never starts within 3 seconds, give up
+    let started = false;
+    const timeout = setTimeout(() => {
+      if (!started) { ttsAvailable = false; onEnd?.(); }
+    }, 3000);
+    const go = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const br = voices.find(v => v.lang === "pt-BR") || voices.find(v => v.lang.startsWith("pt"));
+      if (br) u.voice = br;
+      u.onstart = () => { started = true; clearTimeout(timeout); ttsAvailable = true; onStart?.(); };
+      u.onend = () => onEnd?.();
+      u.onerror = () => { clearTimeout(timeout); ttsAvailable = false; onEnd?.(); };
+      window.speechSynthesis.speak(u);
+    };
+    if (window.speechSynthesis.getVoices().length) go();
+    else {
+      window.speechSynthesis.addEventListener("voiceschanged", go, { once: true });
+      // If voiceschanged never fires, timeout handles it
+    }
+  } catch (e) {
+    ttsAvailable = false;
+    onEnd?.();
+  }
 }
