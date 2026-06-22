@@ -201,7 +201,7 @@ const pCard=fD[pI]||["","",""];
 
 // Talk — build practice vocab from completed units
 const practiceWords=()=>{const words=[];D.forEach((_,i)=>{if(prog.units.includes(i))D[i].w.forEach(w=>words.push(`${w[0]} (${w[1]})`))});return words};
-const sendChat=async()=>{const t=chatIn.trim();if(!t||busy)return;
+const sendChat=async(voiceText)=>{const t=(voiceText||chatIn).trim();if(!t||busy)return;
 setMsgs(p=>[...p,{id:nid.current++,role:"u",text:t}]);setBusy(true);setChatIn("");
 try{const hist=mr.current.slice(-6).flatMap(m=>m.role==="u"?[{role:"user",content:m.text}]:[{role:"assistant",content:m.pt}]);
 hist.push({role:"user",content:t});
@@ -209,8 +209,8 @@ const pracVocab=learnedW();
 const scenarioMatch = chatMode?.startsWith("scenario_") ? BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode) : null;
 const sysPrompt=scenarioMatch
 ?buildBiaPrompt(prog.units||[],pracVocab)+"\n\nSCENARIO: "+scenarioMatch.prompt+" Stay in character for this scenario. Keep responses short and natural."
-:chatMode==="practice"
-?buildBiaPrompt(prog.units||[],pracVocab)
+:chatMode==="practice"||chatMode==="voice"
+?buildBiaPrompt(prog.units||[],pracVocab)+(chatMode==="voice"?"\n\nVOICE MODE: Keep responses SHORT (1-2 sentences max). The student is speaking aloud, so be conversational and encouraging.":"")
 :`You are Bia, warm Brazilian Portuguese tutor. Reply ONLY raw JSON:{"pt":"reply in PT","en":"English","tip":"tip or null","fix":"correction or null"} Brazilian PT only.`;
 const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),15000);
 const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},signal:ctrl.signal,
@@ -344,45 +344,68 @@ return<div className="c" style={{padding:"14px 16px",marginBottom:14,animation:"
 <div style={{fontSize:13,color:T2,lineHeight:1.5}}>{tip.tip}</div>
 </div></div>})()}
 
-{/* LEVEL TOGGLE BAR */}
-<div style={{display:"flex",gap:8,overflowX:"auto",padding:"0 4px 14px",WebkitOverflowScrolling:"touch"}}>
+{/* LEVEL SELECTOR — Circular badges with progress rings */}
+<div style={{display:"flex",gap:10,overflowX:"auto",padding:"4px 4px 16px",WebkitOverflowScrolling:"touch"}}>
 {LEVELS.map((name,l)=>{const open=isOpen(l);const active=selL===l;const col=LEVEL_COLORS[l];
+const uList=D.map((u,i)=>({...u,idx:i})).filter(u=>u.l===l);const done=uList.filter(u=>isDone(u.idx)).length;const ringPct=uList.length?Math.round(done/uList.length*100):0;
 return<button key={l} onClick={()=>{if(open){setSelL(l);playSound("tap")}}} disabled={!open}
-className="b" style={{padding:W?"10px 20px":"8px 16px",borderRadius:14,fontSize:W?13:11,fontWeight:active?800:600,whiteSpace:"nowrap",flexShrink:0,
-background:active?`linear-gradient(135deg,${col},${col}CC)`:"rgba(255,255,255,.85)",
-color:active?"#fff":open?"#444":"#bbb",opacity:open?1:.35,
-boxShadow:active?`0 4px 18px ${col}50`:"0 2px 8px rgba(0,0,0,.04)",
-border:active?"none":`2px solid ${open?col+"30":"rgba(0,0,0,.06)"}`,
-transform:active?"scale(1.05)":"scale(1)",transition:"all .2s"}}>{!open&&"🔒 "}{LEVEL_ICONS[l]} {name}</button>})}
+className="b" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"6px 4px",minWidth:W?72:62,flexShrink:0,background:"transparent",opacity:open?1:.3}}>
+<div style={{position:"relative",width:W?52:44,height:W?52:44}}>
+{/* Progress ring */}
+<svg width={W?52:44} height={W?52:44} style={{position:"absolute",top:0,left:0,transform:"rotate(-90deg)"}}>
+<circle cx={W?26:22} cy={W?26:22} r={W?22:18} fill="none" stroke={dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.06)"} strokeWidth="3"/>
+{open&&ringPct>0&&<circle cx={W?26:22} cy={W?26:22} r={W?22:18} fill="none" stroke={col} strokeWidth="3" strokeDasharray={`${ringPct*1.38} 200`} strokeLinecap="round"/>}
+</svg>
+<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",
+background:active?`linear-gradient(135deg,${col},${col}DD)`:dark?"rgba(40,40,40,.9)":"rgba(255,255,255,.95)",
+borderRadius:"50%",margin:3,fontSize:active?20:16,
+boxShadow:active?`0 4px 16px ${col}60`:"0 2px 8px rgba(0,0,0,.06)",
+border:active?"none":`2px solid ${open?col+"40":"transparent"}`,
+transition:"all .25s",transform:active?"scale(1.1)":"scale(1)"}}>
+{open?LEVEL_ICONS[l]:"🔒"}</div></div>
+<div style={{fontSize:10,fontWeight:active?800:600,color:active?col:T4,textAlign:"center",lineHeight:1.2,maxWidth:64}}>{name.split(" ").slice(0,2).join(" ")}</div>
+</button>})}
 </div>
 
 {/* LEVEL PROGRESS BAR */}
 {(()=>{const units=lvUnits(selL);const done=units.filter(u=>isDone(u.idx)).length;const pct=units.length?Math.round(done/units.length*100):0;
 return<div style={{padding:"0 4px 14px"}}>
 <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:T7,marginBottom:6}}>
-<span style={{fontWeight:600}}>{LEVEL_ICONS[selL]} {LEVELS[selL]}</span>
-<span>{done}/{units.length} units · {pct}%</span></div>
-<div style={{background:"rgba(0,0,0,.06)",borderRadius:6,height:8,overflow:"hidden"}}>
+<span style={{fontWeight:700,color:LEVEL_COLORS[selL]}}>{LEVEL_ICONS[selL]} {LEVELS[selL]}</span>
+<span style={{fontWeight:600}}>{done}/{units.length} · {pct}%</span></div>
+<div style={{background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)",borderRadius:6,height:8,overflow:"hidden"}}>
 <div style={{height:"100%",borderRadius:6,background:`linear-gradient(90deg,${LEVEL_COLORS[selL]},${LEVEL_COLORS[Math.min(selL+1,6)]})`,
 width:`${pct}%`,transition:"width .5s"}}/></div>
 </div>})()}
 
-{/* UNITS LIST */}
-<div style={{display:"flex",flexDirection:"column",gap:10}}>
-{lvUnits(selL).map((u,i)=>{const dn=isDone(u.idx);const preview=u.w.slice(0,3).map(w=>w[0]).join(", ");
-return<button key={u.idx} onClick={()=>{startUnit(u.idx);playSound("click")}} className="c b"
-style={{padding:W?"18px 22px":"14px 16px",textAlign:"left",width:"100%",display:"flex",alignItems:"center",gap:14,animation:`fi .3s ${i*.04}s both`}}>
-<div style={{width:W?48:42,height:W?48:42,borderRadius:14,background:dn?"linear-gradient(135deg,#A5D6B0,#66BB6A)":`linear-gradient(135deg,${LEVEL_COLORS[selL]}20,${LEVEL_COLORS[selL]}08)`,
-display:"flex",alignItems:"center",justifyContent:"center",fontSize:dn?18:14,color:dn?"#fff":"#0B4A3E",fontWeight:700,flexShrink:0}}>{dn?"✓":u.idx+1}</div>
-<div style={{flex:1,minWidth:0}}><div style={{fontSize:W?17:15,fontWeight:600}}>{u.n}</div>
-<div style={{fontSize:W?12:11,color:T4,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{preview}...</div>
-<div style={{display:"flex",gap:6,marginTop:4}}>
-<span style={{fontSize:10,background:"rgba(11,74,62,.06)",color:"#0B4A3E",padding:"2px 6px",borderRadius:4}}>{u.w.length} words</span>
-{CONVOS[u.idx]&&<span style={{fontSize:10,background:"rgba(201,152,46,.08)",color:"#C9982E",padding:"2px 6px",borderRadius:4}}>💬 {CONVOS[u.idx].length}</span>}
-{STORIES[u.idx]&&<span style={{fontSize:10,background:"rgba(123,31,162,.06)",color:"#7B1FA2",padding:"2px 6px",borderRadius:4}}>📖</span>}
+{/* UNITS LIST — Vibrant cards */}
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+{lvUnits(selL).map((u,i)=>{const dn=isDone(u.idx);const col=LEVEL_COLORS[selL];const preview=u.w.slice(0,3).map(w=>w[0]).join(" · ");
+return<button key={u.idx} onClick={()=>{startUnit(u.idx);playSound("click")}} className="b"
+style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",animation:`fi .3s ${i*.04}s both`,
+background:dark?"rgba(30,30,30,.95)":"rgba(255,255,255,.97)",
+boxShadow:dn?`0 4px 20px ${col}25`:`0 4px 20px rgba(0,0,0,.08)`,
+border:`2px solid ${dn?col+"50":dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,
+transition:"all .2s"}}>
+{/* Colored top accent bar */}
+<div style={{height:4,background:dn?`linear-gradient(90deg,${col},${col}80)`:dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"}}/>
+<div style={{padding:W?"16px 20px":"14px 16px",display:"flex",alignItems:"center",gap:14}}>
+{/* Unit number / check badge */}
+<div style={{width:W?52:46,height:W?52:46,borderRadius:16,
+background:dn?`linear-gradient(135deg,${col},${col}CC)`:`linear-gradient(135deg,${col}15,${col}08)`,
+display:"flex",alignItems:"center",justifyContent:"center",fontSize:dn?22:16,color:dn?"#fff":col,fontWeight:800,flexShrink:0,
+boxShadow:dn?`0 4px 12px ${col}40`:"none",fontFamily:"Georgia,serif"}}>
+{dn?"✓":u.idx+1}</div>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:W?17:15,fontWeight:700,color:dn?col:dark?"#e0e0e0":"#1a1a1a",fontFamily:"Georgia,serif"}}>{u.n}</div>
+<div style={{fontSize:12,color:T4,marginTop:3,fontStyle:"italic"}}>{preview}</div>
+<div style={{display:"flex",gap:6,marginTop:6}}>
+<span style={{fontSize:10,background:`${col}12`,color:col,padding:"3px 8px",borderRadius:6,fontWeight:700}}>{u.w.length} words</span>
+{CONVOS[u.idx]&&<span style={{fontSize:10,background:"rgba(201,152,46,.1)",color:"#C9982E",padding:"3px 8px",borderRadius:6,fontWeight:600}}>💬 {CONVOS[u.idx].length}</span>}
+{STORIES[u.idx]&&<span style={{fontSize:10,background:"rgba(123,31,162,.08)",color:"#7B1FA2",padding:"3px 8px",borderRadius:6,fontWeight:600}}>📖 Story</span>}
 </div></div>
-{dn&&<div style={{fontSize:11,color:"#2E7D32",fontWeight:700}}>Done ✓</div>}
-</button>})}
+{dn&&<div style={{fontSize:24,filter:"drop-shadow(0 2px 4px rgba(0,0,0,.15))"}}>✅</div>}
+</div></button>})}
 
 {/* LEVEL TEST */}
 {(()=>{const ad=allDone(selL);const passed=prog.levels.includes(selL+1);
@@ -1081,6 +1104,15 @@ style={{padding:W?"22px 24px":"18px 20px",textAlign:"left",width:"100%"}}>
 <div><div style={{fontSize:W?17:15,fontWeight:700,color:T1}}>Practice Mode</div>
 <div style={{fontSize:12,color:T3,marginTop:3,lineHeight:1.4}}>Bia adapts to your level! She only uses vocabulary and grammar from your completed units. The more you learn, the smarter she gets.</div>
 <div style={{fontSize:11,color:"#C9982E",fontWeight:600,marginTop:4}}>📖 {learnedW().length} words · {(prog.units||[]).length} units · Stage: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div></div></div></button>
+
+{/* VOICE CHAT */}
+<button onClick={()=>{setChatMode("voice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Fala comigo! Toca o microfone e fala em português! 🎙️",en:"Hi! Talk to me! Tap the mic and speak in Portuguese!"}])}} className="c b"
+style={{padding:W?"22px 24px":"18px 20px",textAlign:"left",width:"100%",border:"2px solid rgba(233,30,99,.15)",background:dark?"rgba(233,30,99,.05)":"linear-gradient(135deg,rgba(255,255,255,.98),rgba(252,228,236,.3))"}}>
+<div style={{display:"flex",alignItems:"center",gap:14}}>
+<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C2185B,#E91E63)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,color:"#fff",boxShadow:"0 4px 16px rgba(233,30,99,.3)"}}>🎙️</div>
+<div><div style={{fontSize:W?17:15,fontWeight:700,color:"#C2185B"}}>Voice Chat ✨</div>
+<div style={{fontSize:12,color:T3,marginTop:3,lineHeight:1.4}}>Speak Portuguese and hear Bia respond! Like a real phone call with a Brazilian friend.</div></div></div></button>
+
 <button onClick={()=>{setChatMode("free");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}} className="c b"
 style={{padding:W?"22px 24px":"18px 20px",textAlign:"left",width:"100%"}}>
 <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -1112,8 +1144,8 @@ className="b" style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color
 {/* Mode badge */}
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 4px"}}>
 <div style={{display:"flex",alignItems:"center",gap:8}}>
-<div style={{background:chatMode==="practice"?"linear-gradient(135deg,#C9982E,#D4A027)":chatMode?.startsWith("scenario_")?"linear-gradient(135deg,#7B1FA2,#9C27B0)":"linear-gradient(135deg,#0B4A3E,#2D8B6E)",
-color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{chatMode==="practice"?"📚 Practice":chatMode?.startsWith("scenario_")?(BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode)?.icon||"🎬")+" "+(BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode)?.name||"Scenario"):"💬 Free"}</div>
+<div style={{background:chatMode==="practice"?"linear-gradient(135deg,#C9982E,#D4A027)":chatMode==="voice"?"linear-gradient(135deg,#C2185B,#E91E63)":chatMode?.startsWith("scenario_")?"linear-gradient(135deg,#7B1FA2,#9C27B0)":"linear-gradient(135deg,#0B4A3E,#2D8B6E)",
+color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{chatMode==="practice"?"📚 Practice":chatMode==="voice"?"🎙️ Voice":chatMode?.startsWith("scenario_")?(BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode)?.icon||"🎬")+" "+(BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode)?.name||"Scenario"):"💬 Free"}</div>
 {chatMode==="practice"&&<div style={{fontSize:11,color:T3}}>{learnedW().length} words active</div>}</div>
 <div style={{display:"flex",alignItems:"center",gap:8}}>
 {msgs.filter(m=>m.role==="a").length>1&&<div style={{fontSize:11,color:T3,background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)",padding:"3px 10px",borderRadius:8}}>
@@ -1140,12 +1172,30 @@ color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{cha
 {err}<button onClick={()=>setErr(null)} className="b" style={{background:"none",fontSize:18,color:"#C62828"}}>×</button></div>}
 
 {tab==="talk"&&chatMode&&msgs.length>0&&<div style={{background:dark?"rgba(18,18,18,.95)":"rgba(255,255,255,.92)",backdropFilter:"blur(16px)",borderTop:dark?"1px solid rgba(255,255,255,.06)":"1px solid rgba(0,0,0,.06)",padding:"12px 16px 14px",flexShrink:0}}>
-<div className="w" style={{display:"flex",gap:8}}>
+<div className="w" style={{display:"flex",gap:8,alignItems:"center"}}>
+{chatMode==="voice"?<>
+{/* VOICE INPUT — big mic button */}
+<button onClick={()=>{if(busy)return;
+try{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){setErr("Speech recognition not supported in this browser");return}
+const r=new SR();r.lang="pt-BR";r.continuous=false;r.interimResults=false;
+r.onresult=e=>{const text=e.results[0][0].transcript;if(text.trim()){setChatIn(text);
+setTimeout(()=>{const t=text;setChatIn("");sendChat(t)},100)}};
+r.onerror=()=>setErr("Couldn't hear you — try again");
+r.start();playSound("click")}catch{setErr("Voice input not available")}
+}} disabled={busy} className="b"
+style={{flex:1,padding:"16px",borderRadius:16,background:busy?"rgba(233,30,99,.1)":"linear-gradient(135deg,#C2185B,#E91E63)",color:busy?T3:"#fff",
+fontSize:16,fontWeight:700,boxShadow:busy?"none":"0 4px 16px rgba(233,30,99,.3)",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+{busy?<><div className="ld"/><div className="ld"/><div className="ld"/></>:<>🎙️ Tap to Speak</>}
+</button>
+<button onClick={()=>{setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:20,color:T3}}>↻</button>
+</>:<>
+{/* TEXT INPUT */}
 <input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendChat()}}
-placeholder={chatMode==="practice"?"Practice with your learned words...":"Type in Portuguese or English..."} style={{flex:1,padding:"12px 16px",borderRadius:14,border:"1px solid rgba(0,0,0,.08)",fontSize:15}}/>
+placeholder={chatMode==="practice"?"Practice with your learned words...":"Type in Portuguese or English..."} style={{flex:1,padding:"12px 16px",borderRadius:14,border:`1px solid ${dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.08)"}`,fontSize:15,background:dark?"rgba(40,40,40,.9)":"#fff",color:dark?"#e0e0e0":"#1a1a1a"}}/>
 <button onClick={sendChat} disabled={busy||!chatIn.trim()} className="b"
 style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:14,padding:"12px 20px",fontSize:15,fontWeight:700}}>→</button>
 <button onClick={()=>{setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:20,color:T3}}>↻</button>
+</>}
 </div></div>}
 
 {/* TAB BAR */}
