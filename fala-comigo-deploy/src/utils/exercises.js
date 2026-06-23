@@ -60,102 +60,154 @@ export function generateUnitFlow(unit, allLevelWords, prevUnitWords, grammarNote
   const eligibleCross = (crossSentences || []).filter(cs => cs.req <= (allCompletedWords?.length ? Math.floor(allCompletedWords.length / 10) : 0));
   const crossPool = shuffle(eligibleCross);
 
-  // ─── PHASE 1: LEARN FIRST 3 WORDS ───
-  // Intro word 1 (listen-first), then immediately quiz it
-  flow.push({ t: "intro_listen", word: words[0] });
-  flow.push({ t: "intro", word: words[1] });
-  flow.push(makeQuiz(words[0], pool, "pick_en"));     // quiz word 1 right away
-  flow.push({ t: "intro_listen", word: words[2] });
-  flow.push({ t: "flash", word: words[1] });           // flashcard word 2
-  if (grammarNotes?.[0]) flow.push({ t: "grammar", text: grammarNotes[0] });
+  // Track how many times each word has been practiced (for spacing)
+  const seen = {};
+  words.forEach(w => seen[w[0]] = 0);
+  const bump = w => { seen[w[0]] = (seen[w[0]] || 0) + 1; };
 
-  // 💬 Conversation 1
+  // ══════════════════════════════════════════════════════════════
+  // RESEARCH-BASED FLOW (Webb 2007, Nation 2001, Bisson 2014):
+  // Every word gets: MEET (multimodal, no pressure) → RECOGNIZE (4-choice)
+  // → RECALL (harder) → PRODUCE (type/speak), spaced across the lesson.
+  // Target: 8-12 exposures per word with increasing difficulty.
+  // ══════════════════════════════════════════════════════════════
+
+  // Helper: introduce a word gently (meet it — see + hear + meaning, NO test)
+  const meet = (w) => { flow.push({ t: "intro", word: w }); bump(w); };
+  // Helper: easy recognition test (4-option multiple choice with the answer visible-ish)
+  const recognize = (w, dir) => { flow.push(makeQuiz(w, pool, dir || "pick_en")); bump(w); };
+
+  // ─── PHASE 1: MEET FIRST 3 WORDS (pure exposure, build familiarity) ───
+  // Research: first exposures should be multimodal with no retrieval pressure
+  meet(words[0]);
+  meet(words[1]);
+  meet(words[2]);
+  // Now a GENTLE recognition check on word 1 (it's been seen once, low pressure)
+  recognize(words[0], "pick_en");
+  flow.push({ t: "flash", word: words[1] }); bump(words[1]);  // flashcard = self-paced recognition
+  recognize(words[2], "pick_en");
+
+  // 💬 Conversation 1 (words appear in natural context)
   if (convo(0)) flow.push({ t: "convo", data: convo(0) });
 
-  // ─── PHASE 2: LEARN WORDS 4-6, MIX WITH PRACTICE ───
-  flow.push({ t: "intro", word: words[3] });
-  flow.push({ t: "intro_listen", word: words[4] });
+  // Re-test words 1-3 (spaced — they've had a gap now)
+  recognize(words[1], "pick_pt");
+  recognize(words[0], "listen");  // hear it, pick meaning
+
+  // ─── PHASE 2: MEET WORDS 4-6 ───
+  meet(words[3]);
+  meet(words[4]);
+  meet(words[5] || words[Math.min(5, words.length - 1)]);
+  recognize(words[3], "pick_en");
+  flow.push({ t: "flash", word: words[4] }); bump(words[4]);
+  if (grammarNotes?.[0]) flow.push({ t: "grammar", text: grammarNotes[0] });
+  recognize(words[5] || words[Math.min(5, words.length - 1)], "pick_en");
+
+  // Spaced recall of phase-1 words (now harder — pick_pt = produce direction)
+  recognize(words[2], "pick_pt");
   if (sents[0]) flow.push({ t: "sentence", data: makeSent(sents[0]) });
-  flow.push(makeQuiz(words[3], pool, "pick_pt"));      // quiz word 4
-  flow.push({ t: "intro", word: words[5] || words[Math.min(5, words.length-1)] });
-  flow.push({ t: "mimicry", word: rw(words, 6) });
-  flow.push({ t: "flash", word: rw(words, 6) });
 
   // 💬 Conversation 2
   if (convo(1)) flow.push({ t: "convo", data: convo(1) });
 
-  // ─── PHASE 3: LEARN WORDS 7-10 ───
-  for (let i = 6; i < Math.min(8, words.length); i++) {
-    flow.push({ t: "intro", word: words[i] });
+  // ─── PHASE 3: MEET WORDS 7-10 ───
+  for (let i = 6; i < words.length; i++) {
+    meet(words[i]);
+    // Immediately reinforce with a flashcard (recognition, low pressure)
+    if (i % 2 === 0) { flow.push({ t: "flash", word: words[i] }); bump(words[i]); }
   }
+  // Gentle recognition pass on the new words
+  recognize(words[6] || words[0], "pick_en");
+  recognize(words[Math.min(7, words.length - 1)], "pick_en");
   if (grammarNotes?.[1]) flow.push({ t: "grammar", text: grammarNotes[1] });
+  if (words.length > 8) recognize(words[8], "pick_en");
   if (sents[1]) flow.push({ t: "sentence", data: makeSent(sents[1]) });
-  for (let i = 8; i < words.length; i++) {
-    flow.push({ t: "intro", word: words[i] });
-  }
-  flow.push(makeQuiz(rw(words), pool, "listen"));      // listening quiz
-  const mw1 = rMW();
-  if (mw1) flow.push({ t: "word_order", word: mw1, scrambled: shuffle(mw1[0].split(" ")) });
 
   // 💬 Conversation 3
   if (convo(2)) flow.push({ t: "convo", data: convo(2) });
 
-  // ─── PHASE 4: REINFORCE ALL WORDS ───
-  flow.push(makeQuiz(rw(words), pool, "pick_en"));
-  flow.push(makeQuiz(rw(words), pool, "pick_pt"));
-  flow.push({ t: "flash", word: rw(words) });
+  // ─── PHASE 4: STRENGTHEN — every word gets a recall rep ───
+  // Now words have been MET and RECOGNIZED. Time for harder retrieval.
+  // Find the words seen the least and prioritize them.
+  const leastSeen = [...words].sort((a, b) => (seen[a[0]] || 0) - (seen[b[0]] || 0));
+  // First listening practice
+  flow.push(makeQuiz(leastSeen[0], pool, "listen")); bump(leastSeen[0]);
+  recognize(leastSeen[1], "pick_pt");
+  flow.push({ t: "mimicry", word: leastSeen[2] || words[0] }); bump(leastSeen[2] || words[0]);
+
+  // Multi-word phrase ordering
+  const mw1 = rMW();
+  if (mw1) { flow.push({ t: "word_order", word: mw1, scrambled: shuffle(mw1[0].split(" ")) }); bump(mw1); }
+
   if (sents[2]) flow.push({ t: "sentence", data: makeSent(sents[2]) });
-  else flow.push(makeQuiz(rw(words), pool, "listen"));
 
-  // Sentence builder (cross-unit)
-  if (crossPool[0]) flow.push({ t: "sentence_build", data: {...crossPool[0], shuffledWords: shuffle([...crossPool[0].words])} });
+  // Sentence builder (cross-unit, uses old + new vocabulary)
+  if (crossPool[0]) flow.push({ t: "sentence_build", data: { ...crossPool[0], shuffledWords: shuffle([...crossPool[0].words]) } });
 
-  // Error correction (level 3+) — sometimes shows correct sentences too!
+  // Error correction (level 3+)
   if (unit.l >= 3) {
     if (Math.random() > 0.4) {
-      // Show a wrong sentence
       const err = ERROR_BANK[Math.floor(Math.random() * ERROR_BANK.length)];
       flow.push({ t: "error_correct", data: { ...err, isWrong: true } });
     } else {
-      // Show a correct sentence — user should pick "This is correct"
       const correct_sents = [
-        {sentence:"Eu gosto de café com leite.",rule:"Correct! 'Gostar de' + noun is the standard construction."},
-        {sentence:"A gente vai ao cinema hoje.",rule:"Correct! 'A gente' takes singular verb 'vai'."},
-        {sentence:"Ela é mais alta que eu.",rule:"Correct! 'Mais...que' for comparisons is right."},
-        {sentence:"Faz dois anos que eu moro aqui.",rule:"Correct! 'Fazer' for time is always singular."},
-        {sentence:"Eu fui ao mercado comprar frutas.",rule:"Correct! 'Ir a' (not 'ir em') for destinations."},
-        {sentence:"Obrigada, disse a mulher.",rule:"Correct! Women say 'obrigada' with -a ending."},
+        { sentence: "Eu gosto de café com leite.", rule: "Correct! 'Gostar de' + noun is the standard construction." },
+        { sentence: "A gente vai ao cinema hoje.", rule: "Correct! 'A gente' takes singular verb 'vai'." },
+        { sentence: "Ela é mais alta que eu.", rule: "Correct! 'Mais...que' for comparisons is right." },
+        { sentence: "Faz dois anos que eu moro aqui.", rule: "Correct! 'Fazer' for time is always singular." },
+        { sentence: "Eu fui ao mercado comprar frutas.", rule: "Correct! 'Ir a' (not 'ir em') for destinations." },
+        { sentence: "Obrigada, disse a mulher.", rule: "Correct! Women say 'obrigada' with -a ending." },
       ];
       const cs = correct_sents[Math.floor(Math.random() * correct_sents.length)];
       flow.push({ t: "error_correct", data: { wrong: cs.sentence, right: cs.sentence, rule: cs.rule, isWrong: false } });
     }
   }
 
-  flow.push({ t: "mimicry", word: rw(words) });
+  // 💬 Conversation 4
+  if (convo(3)) flow.push({ t: "convo", data: convo(3) });
 
-  // Spiral review — old words from past units
+  // Spiral review — old words from past units mixed in
   const spiralWords = spiralPick(allCompletedWords, 2);
   spiralWords.forEach(sw => {
     flow.push(makeQuiz(sw, [...pool, ...spiralWords], QUIZ_TYPES[Math.floor(Math.random() * 4)]));
   });
 
-  // 💬 Conversation 4
-  if (convo(3)) flow.push({ t: "convo", data: convo(3) });
+  // ─── PHASE 5: PRODUCE & MASTER — hardest retrieval, full production ───
+  // Re-sort by least seen so under-practiced words get final reps
+  const stillWeak = [...words].sort((a, b) => (seen[a[0]] || 0) - (seen[b[0]] || 0));
 
-  // ─── PHASE 5: MASTER ───
-  // Free recall
+  // Free recall (cross-unit)
   if (crossPool[1]) flow.push({ t: "free_recall", data: crossPool[1] });
 
-  flow.push(makeQuiz(rw(words), pool, "type_pt"));
+  // GUARANTEED REINFORCEMENT: every word that has fewer than 5 exposures gets
+  // topped up now with spaced recognition reps (research: aim for 8-12 total).
+  // We interleave them so it's not repetitive.
+  const needsMore = words.filter(w => (seen[w[0]] || 0) < 5);
+  const reinforceTypes = ["pick_en", "pick_pt", "listen", "pick_en"];
+  needsMore.forEach((w, idx) => {
+    flow.push(makeQuiz(w, pool, reinforceTypes[idx % reinforceTypes.length]));
+    bump(w);
+    // Drop in a flashcard every 3rd word to vary the rhythm
+    if (idx % 3 === 2) { flow.push({ t: "flash", word: w }); bump(w); }
+  });
+
+  // Typing = full production (hardest). Give it to the most-practiced words so it's fair.
+  const mostPracticed = [...words].sort((a, b) => (seen[b[0]] || 0) - (seen[a[0]] || 0));
+  flow.push(makeQuiz(mostPracticed[0], pool, "type_pt")); bump(mostPracticed[0]);
+  flow.push(makeQuiz(mostPracticed[1] || words[0], pool, "type_pt")); bump(mostPracticed[1] || words[0]);
+
   const mw2 = rMW();
-  if (mw2) flow.push({ t: "word_order", word: mw2, scrambled: shuffle(mw2[0].split(" ")) });
+  if (mw2) { flow.push({ t: "word_order", word: mw2, scrambled: shuffle(mw2[0].split(" ")) }); bump(mw2); }
   if (grammarNotes?.[2]) flow.push({ t: "grammar", text: grammarNotes[2] });
 
-  // Mini-story
+  // Mini-story (words in rich narrative context — research shows +67% retention)
   if (story) flow.push({ t: "story", data: makeStory(story) });
 
-  flow.push(makeQuiz(rw(words), pool, "pick_en"));
-  flow.push({ t: "mimicry", word: rw(words) });
+  // Final recognition + speaking on the words that still need it most
+  const finalWeak = [...words].sort((a, b) => (seen[a[0]] || 0) - (seen[b[0]] || 0));
+  flow.push(makeQuiz(finalWeak[0], pool, "pick_en")); bump(finalWeak[0]);
+  flow.push(makeQuiz(finalWeak[1] || words[0], pool, "listen")); bump(finalWeak[1] || words[0]);
+  flow.push({ t: "mimicry", word: finalWeak[2] || words[0] });
 
   // 💬 Conversation 5
   if (convo(4)) flow.push({ t: "convo", data: convo(4) });
