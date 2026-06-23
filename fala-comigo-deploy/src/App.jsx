@@ -331,7 +331,7 @@ input:focus{outline:3px solid rgba(76,175,80,.4);outline-offset:2px}
 {/* HEADER */}
 <div style={{background:"linear-gradient(135deg,#1B5E20,#2E7D32 30%,#43A047 60%,#66BB6A 85%,#81C784)",color:"#fff",padding:`${W?"20px 40px":"16px 20px"}`,flexShrink:0,boxShadow:"0 4px 30px rgba(27,94,32,.35)"}}>
 <div className="w" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<div><div style={{fontSize:W?28:22,fontWeight:800,fontFamily:"Georgia,serif",letterSpacing:"-1px",textShadow:"0 2px 8px rgba(0,0,0,.2)"}}>🇧🇷 Fala Comigo</div>
+<div><div style={{fontSize:W?28:22,fontWeight:800,fontFamily:"Georgia,serif",letterSpacing:"-1px",textShadow:"0 2px 8px rgba(0,0,0,.2)"}}>Fala Comigo 🌴</div>
 <div style={{display:"flex",alignItems:"center",gap:8,marginTop:3}}>
 <div style={{flex:1,background:"rgba(255,255,255,.15)",borderRadius:4,height:6,maxWidth:120}}>
 <div style={{height:"100%",borderRadius:4,background:"linear-gradient(90deg,#A5D6B0,#66BB6A)",width:`${pct}%`,transition:"width .5s"}}/></div>
@@ -363,7 +363,7 @@ input:focus{outline:3px solid rgba(76,175,80,.4);outline-offset:2px}
 
 {/* FIRST-TIME ONBOARDING */}
 {(prog.units||[]).length===0&&resumeUnit===null&&<div className="c" style={{padding:"24px 20px",marginBottom:14,textAlign:"center",animation:"pop .5s",background:"linear-gradient(135deg,rgba(255,255,255,.98),rgba(200,230,207,.3))"}}>
-<div style={{fontSize:40,marginBottom:8}}>🇧🇷</div>
+<div style={{fontSize:40,marginBottom:8}}>🌴</div>
 <div style={{fontSize:22,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E"}}>Welcome to Fala Comigo!</div>
 <div style={{fontSize:14,color:T7,marginTop:6,lineHeight:1.5}}>Let's learn your first Portuguese words. Tap below to start your journey.</div>
 <button onClick={()=>startUnit(0)} className="b" style={{marginTop:16,padding:"14px 40px",borderRadius:16,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:18,fontWeight:800,boxShadow:"0 6px 24px rgba(11,74,62,.3)"}}>
@@ -1044,7 +1044,7 @@ color:statsView===id?"#fff":"#666",border:statsView===id?"none":"1px solid rgba(
 {/* OVERALL PROGRESS — hero */}
 <div style={{borderRadius:24,overflow:"hidden",animation:"pop .3s",boxShadow:"0 8px 32px rgba(11,74,62,.25)"}}>
 <div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",padding:"24px 22px",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-30,right:-20,fontSize:140,opacity:.1}}>🇧🇷</div>
+<div style={{position:"absolute",top:-30,right:-20,fontSize:140,opacity:.1}}>🌴</div>
 <div style={{position:"relative"}}>
 <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,color:"rgba(255,255,255,.8)",fontWeight:700}}>Your Journey</div>
 <div style={{display:"flex",alignItems:"baseline",gap:8,marginTop:4}}>
@@ -1173,7 +1173,7 @@ style={{background:"rgba(11,74,62,.06)",border:"1px solid rgba(11,74,62,.1)",bor
 {/* PRONUNCIATION GUIDE */}
 {statsView==="sounds"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
 <div className="c" style={{padding:"18px",animation:"pop .3s"}}>
-<div style={{fontSize:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:4}}>🇧🇷 Brazilian Portuguese Sounds</div>
+<div style={{fontSize:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:4}}>🌴 Brazilian Portuguese Sounds</div>
 <div style={{fontSize:13,color:T3}}>Tap any example to hear it</div>
 </div>
 {[
@@ -1260,7 +1260,7 @@ background:dark?"rgba(30,30,30,.9)":"#fff",border:`2px solid ${col}25`,boxShadow
 </div></div>}
 
 {tab==="talk"&&chatMode&&msgs.length===0&&<div style={{padding:"40px 0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,minHeight:400,animation:"fi .4s"}}>
-<div style={{fontSize:60}}>🇧🇷</div>
+<div style={{fontSize:60}}>🌴</div>
 <div style={{fontSize:W?24:20,fontWeight:700,fontFamily:"Georgia,serif"}}>Chat with Bia</div>
 <div style={{fontSize:14,color:T3}}>Practice Portuguese or English</div>
 <button onClick={()=>setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}
@@ -1306,7 +1306,7 @@ color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{cha
 {/* VOICE INPUT — robust mic with language toggle */}
 <button onClick={()=>setVoiceLang(voiceLang==="pt-BR"?"en-US":"pt-BR")} className="b" title="Switch speaking language"
 style={{padding:"16px 12px",borderRadius:14,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)",fontSize:13,fontWeight:800,color:voiceLang==="pt-BR"?"#0B4A3E":"#1565C0",minWidth:54}}>
-{voiceLang==="pt-BR"?"🇧🇷 PT":"🇬🇧 EN"}</button>
+{voiceLang==="pt-BR"?"PT 🟢":"EN 🔵"}</button>
 <button onClick={()=>{if(busy||voiceListening)return;
 runSpeechRecognition({
   lang:voiceLang,
