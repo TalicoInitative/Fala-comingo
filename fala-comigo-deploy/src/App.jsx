@@ -49,8 +49,48 @@ const[dark,setDark]=useState(()=>{try{return localStorage.getItem("fala-dark")==
 const toggleDark=()=>{const nd=!dark;setDark(nd);try{localStorage.setItem("fala-dark",nd?"1":"0")}catch{}};
 // Saved quiz count for completion screen
 const[lastQC,setLastQC]=useState(0);
+// Voice chat listening state
+const[voiceListening,setVoiceListening]=useState(false);
 
 const nid=useRef(1),btm=useRef(null),mr=useRef(msgs),activeRef=useRef(false);mr.current=msgs;
+const recRef=useRef(null);const micTimerRef=useRef(null);
+
+// ROBUST shared speech recognition — handles permissions, timeouts, cleanup, all error types
+const runSpeechRecognition=useCallback((opts)=>{
+  const{onStart,onResult,onError,onEnd}=opts;
+  // Already running? Stop the old one first
+  if(recRef.current){try{recRef.current.abort()}catch{}recRef.current=null}
+  if(micTimerRef.current){clearTimeout(micTimerRef.current);micTimerRef.current=null}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){onError?.("no_support");return}
+  let r;try{r=new SR()}catch{onError?.("init_failed");return}
+  r.lang="pt-BR";r.continuous=false;r.interimResults=false;r.maxAlternatives=1;
+  let finished=false;
+  const cleanup=()=>{if(micTimerRef.current){clearTimeout(micTimerRef.current);micTimerRef.current=null}recRef.current=null};
+  r.onstart=()=>{onStart?.()};
+  r.onresult=e=>{finished=true;const text=e.results?.[0]?.[0]?.transcript||"";cleanup();if(text.trim())onResult?.(text.trim());else onError?.("empty");onEnd?.()};
+  r.onerror=e=>{finished=true;cleanup();const err=e?.error||"unknown";
+    // 'aborted' just means we restarted — not a real error
+    if(err==="aborted"){onEnd?.();return}
+    onError?.(err);onEnd?.()};
+  r.onend=()=>{if(!finished){finished=true;cleanup();onError?.("no_speech");onEnd?.()}};
+  recRef.current=r;
+  // Timeout: if nothing happens in 10s, abort
+  micTimerRef.current=setTimeout(()=>{if(!finished){try{r.abort()}catch{}cleanup();onError?.("timeout");onEnd?.()}},10000);
+  try{r.start()}catch(e){cleanup();onError?.("start_failed");onEnd?.()}
+},[]);
+
+const micErrorMsg=(err)=>{
+  switch(err){
+    case"no_support":return"Voice isn't supported in this browser. Try Chrome or Edge.";
+    case"not-allowed":case"service-not-allowed":return"Microphone blocked. Allow mic access in your browser settings.";
+    case"no-speech":case"no_speech":case"empty":return"Didn't hear anything — tap and speak clearly.";
+    case"audio-capture":return"No microphone found. Check it's plugged in.";
+    case"network":return"Network issue with voice. Check your connection.";
+    case"timeout":return"Took too long — tap to try again.";
+    default:return"Didn't catch that — tap to try again.";
+  }
+};
 
 // Check for new achievements — batch trigger all at once
 const checkAch=useCallback((p)=>{
@@ -60,6 +100,9 @@ try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};setProg(np);
 newBadges.forEach((badge,i)=>{setTimeout(()=>{setAchPop(badge);playSound("correct");setTimeout(()=>setAchPop(null),3000)},i*3500)})}
 },[]);
 useEffect(()=>{btm.current?.scrollIntoView({behavior:"smooth"})},[msgs,busy]);
+
+// Abort any active mic when leaving Talk tab or switching chat mode
+useEffect(()=>{return()=>{if(recRef.current){try{recRef.current.abort()}catch{}recRef.current=null}if(micTimerRef.current){clearTimeout(micTimerRef.current)}}},[tab,chatMode]);
 
 useEffect(()=>{try{const raw=localStorage.getItem("fala-v10");if(raw){const p=JSON.parse(raw);
 const today=new Date().toDateString();if(p.lastDate&&p.lastDate!==today){
@@ -162,13 +205,18 @@ const result=nw.map(x=>x.w).join(" ");const correct=norm(result)===norm(curEx.wo
 if(correct){playSound("correct");addXP(2);setScore(s=>s+1)}else{playSound("wrong")}
 setTimeout(advance,correct?800:1400)}};
 
-// Mimicry handler (speech recognition)
-const startMic=()=>{if(!('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){setMicText("Speech recognition not available");setMicDone(true);return}
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;const r=new SR();r.lang="pt-BR";r.continuous=false;r.interimResults=false;
-r.onstart=()=>setMicListening(true);r.onresult=e=>{const t=e.results[0][0].transcript;setMicText(t);setMicDone(true);setMicListening(false);
-const correct=norm(t)===norm(curEx.word[0]);if(correct){playSound("correct");addXP(2)}else{playSound("wrong")}};
-r.onerror=()=>{setMicText("Didn't catch that — try again");setMicDone(true);setMicListening(false)};
-r.onend=()=>setMicListening(false);r.start()};
+// Mimicry handler (speech recognition) — uses robust shared helper
+const startMic=()=>{
+  if(micListening)return;
+  setMicText("");setMicDone(false);
+  runSpeechRecognition({
+    onStart:()=>setMicListening(true),
+    onResult:(t)=>{setMicText(t);setMicDone(true);setMicListening(false);
+      const correct=norm(t)===norm(curEx.word[0]);if(correct){playSound("correct");addXP(2)}else{playSound("wrong")}},
+    onError:(err)=>{setMicText(micErrorMsg(err));setMicDone(true);setMicListening(false)},
+    onEnd:()=>setMicListening(false)
+  });
+};
 
 // Convo handler — auto-speak Bia's lines
 const answerConvo=(optIdx)=>{if(convoAns!==null)return;setConvoAns(optIdx);
@@ -1241,20 +1289,23 @@ color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{cha
 {tab==="talk"&&chatMode&&msgs.length>0&&<div style={{background:dark?"rgba(18,18,18,.95)":"rgba(255,255,255,.92)",backdropFilter:"blur(16px)",borderTop:dark?"1px solid rgba(255,255,255,.06)":"1px solid rgba(0,0,0,.06)",padding:"12px 16px 14px",flexShrink:0}}>
 <div className="w" style={{display:"flex",gap:8,alignItems:"center"}}>
 {chatMode==="voice"?<>
-{/* VOICE INPUT — big mic button */}
-<button onClick={()=>{if(busy)return;
-try{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){setErr("Speech recognition not supported in this browser");return}
-const r=new SR();r.lang="pt-BR";r.continuous=false;r.interimResults=false;
-r.onresult=e=>{const text=e.results[0][0].transcript;if(text.trim()){setChatIn(text);
-setTimeout(()=>{const t=text;setChatIn("");sendChat(t)},100)}};
-r.onerror=()=>setErr("Couldn't hear you — try again");
-r.start();playSound("click")}catch{setErr("Voice input not available")}
+{/* VOICE INPUT — robust mic button */}
+<button onClick={()=>{if(busy||voiceListening)return;
+runSpeechRecognition({
+  onStart:()=>{setVoiceListening(true);playSound("click")},
+  onResult:(text)=>{setVoiceListening(false);sendChat(text)},
+  onError:(err)=>{setVoiceListening(false);setErr(micErrorMsg(err));setTimeout(()=>setErr(null),5000)},
+  onEnd:()=>setVoiceListening(false)
+});
 }} disabled={busy} className="b"
-style={{flex:1,padding:"16px",borderRadius:16,background:busy?"rgba(233,30,99,.1)":"linear-gradient(135deg,#C2185B,#E91E63)",color:busy?T3:"#fff",
-fontSize:16,fontWeight:700,boxShadow:busy?"none":"0 4px 16px rgba(233,30,99,.3)",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-{busy?<><div className="ld"/><div className="ld"/><div className="ld"/></>:<>🎙️ Tap to Speak</>}
+style={{flex:1,padding:"16px",borderRadius:16,
+background:voiceListening?"linear-gradient(135deg,#E53935,#C62828)":busy?"rgba(233,30,99,.12)":"linear-gradient(135deg,#C2185B,#E91E63)",
+color:busy&&!voiceListening?T3:"#fff",fontSize:16,fontWeight:700,
+boxShadow:voiceListening?"0 0 0 4px rgba(233,30,99,.2)":busy?"none":"0 4px 16px rgba(233,30,99,.3)",
+animation:voiceListening?"mic 1.5s infinite":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+{voiceListening?<>🎙️ Listening... <span style={{fontSize:12,opacity:.85}}>(speak now)</span></>:busy?<><div className="ld"/><div className="ld"/><div className="ld"/></>:<>🎙️ Tap to Speak</>}
 </button>
-<button onClick={()=>{setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:20,color:T3}}>↻</button>
+<button onClick={()=>{if(recRef.current){try{recRef.current.abort()}catch{}}setVoiceListening(false);setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:20,color:T3}}>↻</button>
 </>:<>
 {/* TEXT INPUT */}
 <input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendChat()}}
