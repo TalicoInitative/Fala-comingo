@@ -807,22 +807,60 @@ style={{padding:"5px 12px",borderRadius:8,background:"rgba(11,74,62,.06)",border
 </div>}
 
 {/* ═══ PRACTICE TAB ═══ */}
-{tab==="practice"&&!pOn&&<div style={{padding:W?"40px 0":"28px 0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24,minHeight:400,animation:"fi .4s"}}>
-<div style={{fontSize:W?72:60}}>🃏</div>
-<div style={{fontSize:W?28:24,fontWeight:700,fontFamily:"Georgia,serif"}}>Practice</div>
-<div style={{fontSize:15,color:T3}}>{learnedW().length} words from completed units</div>
-{learnedW().length>0&&<div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
-{/* Daily Challenge */}
-<button onClick={startDaily} className="b" style={{background:"linear-gradient(135deg,#C9982E,#D4A027)",color:"#fff",borderRadius:18,padding:"16px",fontSize:17,fontWeight:700,boxShadow:"0 6px 24px rgba(201,152,46,.35)",width:"100%"}}>
-⚡ Daily Challenge (3 min)</button>
-<button onClick={()=>{startF();playSound("click")}} className="b" style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:18,padding:"16px",fontSize:17,fontWeight:700,boxShadow:"0 6px 24px rgba(11,74,62,.3)",width:"100%"}}>🃏 Flashcards</button>
-{(prog.weakWords||[]).length>0&&<button onClick={()=>{
+{tab==="practice"&&!pOn&&<div style={{padding:W?"28px 0":"20px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:18,minHeight:400,animation:"fi .4s"}}>
+<div style={{textAlign:"center",marginBottom:4}}>
+<div style={{fontSize:W?28:24,fontWeight:800,fontFamily:"Georgia,serif",background:"linear-gradient(135deg,#FF9800,#F57C00)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Practice</div>
+<div style={{fontSize:14,color:T3,marginTop:4}}>{learnedW().length} words ready to review</div></div>
+
+{learnedW().length>0&&<div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:380}}>
+{/* Daily Challenge — hero card */}
+<button onClick={startDaily} className="b" style={{position:"relative",overflow:"hidden",borderRadius:22,padding:0,width:"100%",textAlign:"left",
+background:"linear-gradient(135deg,#FFB300,#FF8F00)",boxShadow:"0 8px 28px rgba(255,143,0,.35)",border:"none"}}>
+<div style={{position:"absolute",top:-20,right:-10,fontSize:90,opacity:.18}}>⚡</div>
+<div style={{padding:"20px 22px",position:"relative"}}>
+<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,color:"rgba(255,255,255,.85)",fontWeight:700}}>Recommended Daily</div>
+<div style={{fontSize:W?22:19,fontWeight:800,color:"#fff",marginTop:4,fontFamily:"Georgia,serif"}}>Daily Challenge</div>
+<div style={{fontSize:13,color:"rgba(255,255,255,.9)",marginTop:3}}>3-minute mixed review · keeps your streak alive 🔥</div>
+</div></button>
+
+{/* Two-column secondary actions */}
+<div style={{display:"flex",gap:12}}>
+<button onClick={()=>{startF();playSound("click")}} className="b" style={{flex:1,borderRadius:20,padding:"18px 16px",textAlign:"left",
+background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",boxShadow:"0 6px 20px rgba(11,74,62,.3)",border:"none",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-8,right:-4,fontSize:54,opacity:.16}}>🃏</div>
+<div style={{position:"relative"}}>
+<div style={{fontSize:24,marginBottom:6}}>🃏</div>
+<div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Flashcards</div>
+<div style={{fontSize:11,color:"rgba(255,255,255,.8)",marginTop:2}}>All your words</div>
+</div></button>
+
+{(prog.weakWords||[]).length>0?<button onClick={()=>{
 const rv=generateReview(prog.weakWords,ALL_WORDS);setFlow(rv);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);
 setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);setInUnit(true);playSound("click")
-}} className="b" style={{background:"linear-gradient(135deg,#D94535,#E57373)",color:"#fff",borderRadius:18,padding:"16px",fontSize:17,fontWeight:700,boxShadow:"0 4px 16px rgba(217,69,53,.3)",width:"100%"}}>
-🔄 Review Weak Words ({(prog.weakWords||[]).length})</button>}
+}} className="b" style={{flex:1,borderRadius:20,padding:"18px 16px",textAlign:"left",
+background:"linear-gradient(135deg,#D94535,#E57373)",boxShadow:"0 6px 20px rgba(217,69,53,.3)",border:"none",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-8,right:-4,fontSize:54,opacity:.16}}>🔄</div>
+<div style={{position:"relative"}}>
+<div style={{fontSize:24,marginBottom:6}}>🔄</div>
+<div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Review</div>
+<div style={{fontSize:11,color:"rgba(255,255,255,.85)",marginTop:2}}>{(prog.weakWords||[]).length} weak words</div>
+</div></button>
+:<button onClick={()=>{const drills=shuffle([...SER_ESTAR_DRILLS]).slice(0,8);const flow=drills.map(d=>({t:"ser_estar",data:d}));
+setFlow(flow);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);setInUnit(true);playSound("click")
+}} className="b" style={{flex:1,borderRadius:20,padding:"18px 16px",textAlign:"left",
+background:"linear-gradient(135deg,#1565C0,#42A5F5)",boxShadow:"0 6px 20px rgba(21,101,192,.3)",border:"none",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-8,right:-4,fontSize:54,opacity:.16}}>🎯</div>
+<div style={{position:"relative"}}>
+<div style={{fontSize:24,marginBottom:6}}>🎯</div>
+<div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Ser/Estar</div>
+<div style={{fontSize:11,color:"rgba(255,255,255,.85)",marginTop:2}}>Grammar drill</div>
+</div></button>}
+</div>
 </div>}
-{learnedW().length===0&&<div style={{fontSize:14,color:T4,textAlign:"center",maxWidth:300}}>Complete units in Learn to unlock practice</div>}
+{learnedW().length===0&&<div className="c" style={{padding:"24px 20px",textAlign:"center",maxWidth:320,marginTop:20}}>
+<div style={{fontSize:40,marginBottom:8}}>🔒</div>
+<div style={{fontSize:15,fontWeight:700,color:T1}}>Practice unlocks soon</div>
+<div style={{fontSize:13,color:T3,marginTop:6}}>Complete your first unit in the Learn tab to start practicing.</div></div>}
 {/* MORE PRACTICE — collapsible */}
 {learnedW().length>0&&<div style={{width:"100%",maxWidth:360,marginTop:12}}>
 <button onClick={()=>setShowMore(!showMore)} className="b" style={{width:"100%",padding:"12px 16px",borderRadius:14,background:dark?"rgba(255,255,255,.05)":"rgba(0,0,0,.03)",border:"1px solid rgba(0,0,0,.06)",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:14,fontWeight:700,color:T2}}>
@@ -944,25 +982,39 @@ color:statsView===id?"#fff":"#666",border:statsView===id?"none":"1px solid rgba(
 </div>
 
 {statsView==="overview"&&<>
-{/* OVERALL PROGRESS */}
-<div className="c" style={{padding:"20px",textAlign:"center",animation:"pop .3s"}}>
-<div style={{fontSize:W?48:40,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E"}}>{pct}%</div>
-<div style={{fontSize:14,color:T3,marginTop:4}}>Overall Completion</div>
-<div style={{background:"rgba(11,74,62,.06)",borderRadius:8,height:12,overflow:"hidden",margin:"12px 0"}}>
-<div style={{height:"100%",borderRadius:8,background:"linear-gradient(90deg,#0B4A3E,#2D8B6E)",width:`${pct}%`,transition:"width .5s"}}/></div>
-<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:T4}}>
+{/* OVERALL PROGRESS — hero */}
+<div style={{borderRadius:24,overflow:"hidden",animation:"pop .3s",boxShadow:"0 8px 32px rgba(11,74,62,.25)"}}>
+<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",padding:"24px 22px",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-30,right:-20,fontSize:140,opacity:.1}}>🇧🇷</div>
+<div style={{position:"relative"}}>
+<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,color:"rgba(255,255,255,.8)",fontWeight:700}}>Your Journey</div>
+<div style={{display:"flex",alignItems:"baseline",gap:8,marginTop:4}}>
+<div style={{fontSize:W?52:44,fontWeight:800,fontFamily:"Georgia,serif",color:"#fff",lineHeight:1}}>{pct}%</div>
+<div style={{fontSize:14,color:"rgba(255,255,255,.85)"}}>complete</div></div>
+<div style={{background:"rgba(255,255,255,.2)",borderRadius:8,height:10,overflow:"hidden",margin:"14px 0 8px"}}>
+<div style={{height:"100%",borderRadius:8,background:"linear-gradient(90deg,#FFD54F,#FFB300)",width:`${pct}%`,transition:"width .6s",boxShadow:"0 0 12px rgba(255,213,79,.6)"}}/></div>
+<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"rgba(255,255,255,.85)"}}>
 <span>{(prog.units||[]).length}/{D.length} units</span>
-<span>{doneW}/{D.length*10} words</span>
-</div>
-</div>
+<span>{doneW}/{D.length*10} words</span></div>
+</div></div></div>
+
+{/* STAT GRID */}
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+{[[`${prog.xp}`,"XP","⭐","#C9982E"],[`${doneW}`,"Words","📚","#0B4A3E"],[`${acc}%`,"Accuracy","🎯","#2E7D32"],
+[`${fmt(prog.time||0)}`,"Time","⏱️","#5E35B1"],[`${prog.streak||0}`,"Streak","🔥","#D94535"],[`${prog.exDone||0}`,"Exercises","📝","#1565C0"]].map(([val,label,icon,c],i)=>
+<div key={i} style={{padding:"14px 10px",textAlign:"center",animation:`fi .3s ${i*.05}s both`,borderRadius:16,
+background:dark?"rgba(30,30,30,.9)":"#fff",border:`1.5px solid ${c}20`,boxShadow:`0 3px 12px ${c}12`}}>
+<div style={{fontSize:18,marginBottom:2}}>{icon}</div>
+<div style={{fontSize:W?20:17,fontWeight:800,color:c,fontFamily:"Georgia,serif",lineHeight:1}}>{val}</div>
+<div style={{fontSize:10,color:T4,marginTop:3,fontWeight:600}}>{label}</div></div>)}</div>
 
 {/* BIA STAGE */}
 <div className="c" style={{padding:"16px 18px",display:"flex",alignItems:"center",gap:14,animation:"fi .3s .1s both"}}>
-<div style={{fontSize:36}}>🤖</div>
+<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0,boxShadow:"0 4px 12px rgba(201,152,46,.3)"}}>🤖</div>
 <div style={{flex:1,textAlign:"left"}}>
-<div style={{fontSize:14,fontWeight:700,color:"#C9982E"}}>Bia's Level: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div>
-<div style={{fontSize:12,color:T3,marginTop:2}}>Complete more units to level up Bia's conversation skills</div>
-{(prog.weakWords||[]).length>0&&<div style={{fontSize:11,color:"#D94535",marginTop:3}}>🔴 {(prog.weakWords||[]).length} words need review</div>}
+<div style={{fontSize:14,fontWeight:800,color:"#C9982E",fontFamily:"Georgia,serif"}}>Bia's Level: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div>
+<div style={{fontSize:12,color:T3,marginTop:2}}>Bia gets smarter as you complete more units</div>
+{(prog.weakWords||[]).length>0&&<div style={{fontSize:11,color:"#D94535",marginTop:3,fontWeight:600}}>🔴 {(prog.weakWords||[]).length} words need review</div>}
 </div></div>
 
 {/* CEFR LEVEL */}
@@ -970,41 +1022,34 @@ color:statsView===id?"#fff":"#666",border:statsView===id?"none":"1px solid rgba(
 const current=cefrLevels.find(c=>u<c.max)||cefrLevels[4];const prevMax=cefrLevels[cefrLevels.indexOf(current)-1]?.max||0;const progress=Math.round(((u-prevMax)/(current.max-prevMax))*100);
 return<div className="c" style={{padding:"16px 18px",animation:"fi .3s .15s both"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-<div style={{fontSize:14,fontWeight:700}}>🌍 CEFR Level</div>
-<div style={{fontSize:20,fontWeight:800,color:current.color,fontFamily:"Georgia,serif"}}>{current.label}</div></div>
+<div style={{fontSize:14,fontWeight:700,color:T1}}>🌍 CEFR Level</div>
+<div style={{fontSize:22,fontWeight:800,color:current.color,fontFamily:"Georgia,serif"}}>{current.label}</div></div>
 <div style={{fontSize:12,color:T3,marginBottom:8}}>{current.name} — {u} units completed</div>
-<div style={{display:"flex",gap:3}}>
-{cefrLevels.map((c,i)=><div key={i} style={{flex:1,height:8,borderRadius:4,background:u>=c.max?c.color:(c===current?`${c.color}40`:"rgba(0,0,0,.06)"),position:"relative",overflow:"hidden"}}>
-{c===current&&<div style={{height:"100%",borderRadius:4,background:c.color,width:`${progress}%`}}/>}
+<div style={{display:"flex",gap:4}}>
+{cefrLevels.map((c,i)=><div key={i} style={{flex:1,height:10,borderRadius:5,background:u>=c.max?c.color:(c===current?`${c.color}40`:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)"),position:"relative",overflow:"hidden"}}>
+{c===current&&<div style={{height:"100%",borderRadius:5,background:c.color,width:`${progress}%`}}/>}
 </div>)}
 </div>
 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T5,marginTop:4}}>
-{cefrLevels.map((c,i)=><span key={i}>{c.label}</span>)}
+{cefrLevels.map((c,i)=><span key={i} style={{fontWeight:c===current?800:400,color:c===current?current.color:T5}}>{c.label}</span>)}
 </div></div>})()}
 
 {/* STREAK CALENDAR — Last 30 days */}
 <div className="c" style={{padding:"16px 18px",animation:"fi .3s .2s both"}}>
-<div style={{fontSize:14,fontWeight:700,marginBottom:10}}>📅 30-Day Streak</div>
+<div style={{fontSize:14,fontWeight:700,marginBottom:10,color:T1}}>📅 30-Day Streak</div>
 <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3}}>
 {(()=>{const cells=[];for(let i=29;i>=0;i--){const d=new Date(Date.now()-i*864e5);const key=d.toISOString().split('T')[0];const day=(prog.daily||{})[key];
 const activity=(day?.ex||0)+(day?.flash||0);const isToday=i===0;
-const bg=activity>15?"#1B5E20":activity>8?"#4CAF50":activity>3?"#81C784":activity>0?"#C8E6C9":"rgba(0,0,0,.04)";
+const bg=activity>15?"#1B5E20":activity>8?"#4CAF50":activity>3?"#81C784":activity>0?"#C8E6C9":dark?"rgba(255,255,255,.05)":"rgba(0,0,0,.04)";
 cells.push(<div key={i} title={key+': '+activity+' exercises'} style={{aspectRatio:"1",borderRadius:4,background:bg,border:isToday?"2px solid #FFD600":"1px solid rgba(0,0,0,.03)",cursor:"default"}}/>)};return cells})()}
 </div>
 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T5,marginTop:6}}>
 <span>30 days ago</span><span>Today</span>
 </div></div>
 
-<div style={{display:"grid",gridTemplateColumns:W?"1fr 1fr 1fr":"1fr 1fr",gap:10}}>
-{[[`⭐ ${prog.xp}`,"XP","#C9982E"],[`📚 ${doneW}`,"Words","#0B4A3E"],[`🎯 ${acc}%`,"Accuracy","#2E7D32"],
-[`⏱️ ${fmt(prog.time||0)}`,"Time","#666"],[`🔥 ${prog.streak||0}`,"Streak","#D94535"],[`📝 ${prog.exDone||0}`,"Exercises","#1B6B56"]].map(([val,label,c],i)=>
-<div key={i} className="c" style={{padding:"16px 14px",textAlign:"center",animation:`fi .3s ${i*.05}s both`}}>
-<div style={{fontSize:W?24:20,fontWeight:700,color:c,fontFamily:"Georgia,serif"}}>{val}</div>
-<div style={{fontSize:11,color:T4,marginTop:4}}>{label}</div></div>)}</div>
-
 {/* BACKUP PROGRESS */}
 <div className="c" style={{padding:"14px 18px",animation:"fi .3s .22s both"}}>
-<div style={{fontSize:14,fontWeight:700,marginBottom:8}}>💾 Backup Progress</div>
+<div style={{fontSize:14,fontWeight:700,marginBottom:8,color:T1}}>💾 Backup Progress</div>
 <div style={{display:"flex",gap:8}}>
 <button onClick={()=>{try{const data=JSON.stringify(prog,null,2);const blob=new Blob([data],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="fala-comigo-backup-"+new Date().toISOString().split("T")[0]+".json";a.click();URL.revokeObjectURL(url)}catch{}}} className="b"
 style={{flex:1,padding:"10px",borderRadius:10,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:13,fontWeight:700}}>📤 Export</button>
@@ -1019,14 +1064,19 @@ style={{flex:1,padding:"10px",borderRadius:10,background:"linear-gradient(135deg
 
 {/* TROPHY CASE */}
 <div className="c" style={{padding:"16px 18px",animation:"fi .3s .25s both"}}>
-<div style={{fontSize:14,fontWeight:700,marginBottom:10}}>🏆 Achievements ({(prog.badges||[]).length}/{ACHIEVEMENTS.length})</div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+<div style={{fontSize:14,fontWeight:700,color:T1}}>🏆 Achievements</div>
+<div style={{fontSize:13,fontWeight:800,color:"#C9982E",fontFamily:"Georgia,serif"}}>{(prog.badges||[]).length}/{ACHIEVEMENTS.length}</div></div>
+<div style={{background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.05)",borderRadius:5,height:7,overflow:"hidden",marginBottom:12}}>
+<div style={{height:"100%",borderRadius:5,background:"linear-gradient(90deg,#FFD54F,#FFB300)",width:`${Math.round((prog.badges||[]).length/ACHIEVEMENTS.length*100)}%`,transition:"width .6s"}}/></div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
 {ACHIEVEMENTS.map((a,ai)=>{const earned=(prog.badges||[]).includes(a.id);
-return<div key={ai} title={a.name+": "+a.desc} style={{textAlign:"center",padding:"8px 4px",borderRadius:10,
-background:earned?"rgba(76,175,80,.08)":"rgba(0,0,0,.02)",border:"1px solid "+(earned?"rgba(76,175,80,.2)":"rgba(0,0,0,.04)"),
-opacity:earned?1:.35,transition:"all .3s"}}>
-<div style={{fontSize:earned?24:18}}>{earned?a.icon:"🔒"}</div>
-<div style={{fontSize:9,color:earned?"#2E7D32":"#bbb",fontWeight:600,marginTop:2,lineHeight:1.2}}>{a.name}</div>
+return<div key={ai} title={a.name+": "+a.desc} style={{textAlign:"center",padding:"10px 4px",borderRadius:12,
+background:earned?"linear-gradient(135deg,rgba(255,213,79,.18),rgba(255,179,0,.08))":dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",
+border:earned?"1.5px solid rgba(255,179,0,.35)":"1px solid "+(dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"),
+opacity:earned?1:.4,transition:"all .3s",boxShadow:earned?"0 3px 10px rgba(255,179,0,.15)":"none"}}>
+<div style={{fontSize:earned?26:18,filter:earned?"drop-shadow(0 2px 3px rgba(0,0,0,.15))":"grayscale(1)"}}>{earned?a.icon:"🔒"}</div>
+<div style={{fontSize:9,color:earned?"#C9982E":T5,fontWeight:earned?700:600,marginTop:3,lineHeight:1.2}}>{a.name}</div>
 </div>})}
 </div></div>
 
@@ -1092,45 +1142,62 @@ style={{background:"rgba(11,74,62,.06)",border:"1px solid rgba(11,74,62,.12)",bo
 </div>)}
 </div>}
 </div>}
-{tab==="talk"&&!chatMode&&<div style={{padding:"24px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:20,minHeight:400,animation:"fi .4s"}}>
-<div style={{fontSize:60}}>🇧🇷</div>
-<div style={{fontSize:W?24:20,fontWeight:700,fontFamily:"Georgia,serif"}}>Chat with Bia</div>
-<div style={{fontSize:14,color:T3,textAlign:"center",maxWidth:340}}>Choose how you want to practice</div>
+{tab==="talk"&&!chatMode&&<div style={{padding:"24px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:18,minHeight:400,animation:"fi .4s"}}>
+{/* Animated Bia avatar */}
+<div style={{position:"relative",marginTop:8}}>
+<div style={{position:"absolute",inset:-6,borderRadius:"50%",background:"conic-gradient(from 0deg,#E91E63,#C9982E,#0B4A3E,#7B1FA2,#E91E63)",animation:"rainbow 4s linear infinite",filter:"blur(2px)",opacity:.7}}/>
+<div style={{position:"relative",width:84,height:84,borderRadius:"50%",background:dark?"#1e1e1e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,boxShadow:"0 8px 24px rgba(0,0,0,.15)"}}>🤖</div>
+</div>
+<div style={{textAlign:"center"}}>
+<div style={{fontSize:W?26:22,fontWeight:800,fontFamily:"Georgia,serif",color:T1}}>Bia</div>
+<div style={{fontSize:13,color:T3,marginTop:2}}>Your AI Portuguese tutor · Stage: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div></div>
 <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:380}}>
-<button onClick={()=>{setChatMode("practice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Vamos praticar o que você aprendeu! 📚",en:"Hi! Let's practice what you've learned!"}])}} className="c b"
-style={{padding:W?"22px 24px":"18px 20px",textAlign:"left",width:"100%"}}>
-<div style={{display:"flex",alignItems:"center",gap:14}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📚</div>
-<div><div style={{fontSize:W?17:15,fontWeight:700,color:T1}}>Practice Mode</div>
-<div style={{fontSize:12,color:T3,marginTop:3,lineHeight:1.4}}>Bia adapts to your level! She only uses vocabulary and grammar from your completed units. The more you learn, the smarter she gets.</div>
-<div style={{fontSize:11,color:"#C9982E",fontWeight:600,marginTop:4}}>📖 {learnedW().length} words · {(prog.units||[]).length} units · Stage: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div></div></div></button>
+<button onClick={()=>{setChatMode("practice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Vamos praticar o que você aprendeu! 📚",en:"Hi! Let's practice what you've learned!"}])}} className="b"
+style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",background:dark?"rgba(201,152,46,.08)":"linear-gradient(135deg,rgba(255,255,255,.97),rgba(255,243,224,.4))",border:"2px solid rgba(201,152,46,.2)",boxShadow:"0 4px 16px rgba(201,152,46,.12)"}}>
+<div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14}}>
+<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,boxShadow:"0 4px 12px rgba(201,152,46,.3)"}}>📚</div>
+<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:T1,fontFamily:"Georgia,serif"}}>Practice Mode</div>
+<div style={{fontSize:12,color:T3,marginTop:2,lineHeight:1.4}}>Bia uses only words from your completed units</div>
+<div style={{fontSize:11,color:"#C9982E",fontWeight:700,marginTop:3}}>📖 {learnedW().length} words active</div></div></div></button>
 
 {/* VOICE CHAT */}
-<button onClick={()=>{setChatMode("voice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Fala comigo! Toca o microfone e fala em português! 🎙️",en:"Hi! Talk to me! Tap the mic and speak in Portuguese!"}])}} className="c b"
-style={{padding:W?"22px 24px":"18px 20px",textAlign:"left",width:"100%",border:"2px solid rgba(233,30,99,.15)",background:dark?"rgba(233,30,99,.05)":"linear-gradient(135deg,rgba(255,255,255,.98),rgba(252,228,236,.3))"}}>
-<div style={{display:"flex",alignItems:"center",gap:14}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C2185B,#E91E63)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,color:"#fff",boxShadow:"0 4px 16px rgba(233,30,99,.3)"}}>🎙️</div>
-<div><div style={{fontSize:W?17:15,fontWeight:700,color:"#C2185B"}}>Voice Chat ✨</div>
-<div style={{fontSize:12,color:T3,marginTop:3,lineHeight:1.4}}>Speak Portuguese and hear Bia respond! Like a real phone call with a Brazilian friend.</div></div></div></button>
+<button onClick={()=>{setChatMode("voice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Fala comigo! Toca o microfone e fala em português! 🎙️",en:"Hi! Talk to me! Tap the mic and speak in Portuguese!"}])}} className="b"
+style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",position:"relative",background:"linear-gradient(135deg,#C2185B,#E91E63)",boxShadow:"0 8px 24px rgba(233,30,99,.35)",border:"none"}}>
+<div style={{position:"absolute",top:-15,right:-5,fontSize:80,opacity:.18}}>🎙️</div>
+<div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14,position:"relative"}}>
+<div style={{width:48,height:48,borderRadius:14,background:"rgba(255,255,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🎙️</div>
+<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Voice Chat <span style={{fontSize:11,background:"rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:6,marginLeft:4}}>NEW</span></div>
+<div style={{fontSize:12,color:"rgba(255,255,255,.9)",marginTop:2,lineHeight:1.4}}>Speak Portuguese, hear Bia reply — like a real call</div></div></div></button>
 
-<button onClick={()=>{setChatMode("free");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}} className="c b"
-style={{padding:W?"22px 24px":"18px 20px",textAlign:"left",width:"100%"}}>
-<div style={{display:"flex",alignItems:"center",gap:14}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>💬</div>
-<div><div style={{fontSize:W?17:15,fontWeight:700,color:T1}}>Free Chat</div>
-<div style={{fontSize:12,color:T3,marginTop:3,lineHeight:1.4}}>Talk about anything in Portuguese or English. No restrictions!</div></div></div></button>
+<button onClick={()=>{setChatMode("free");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}} className="b"
+style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",background:dark?"rgba(45,139,110,.08)":"linear-gradient(135deg,rgba(255,255,255,.97),rgba(232,245,233,.4))",border:"2px solid rgba(11,74,62,.15)",boxShadow:"0 4px 16px rgba(11,74,62,.1)"}}>
+<div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14}}>
+<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,boxShadow:"0 4px 12px rgba(11,74,62,.3)"}}>💬</div>
+<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:T1,fontFamily:"Georgia,serif"}}>Free Chat</div>
+<div style={{fontSize:12,color:T3,marginTop:2,lineHeight:1.4}}>Talk about anything, in Portuguese or English</div></div></div></button>
 
 {/* SCENARIO MODES */}
 {learnedW().length>20&&<>
-<div style={{fontSize:14,fontWeight:700,color:T2,marginTop:8}}>🎬 Scenarios</div>
-{BIA_SCENARIOS.filter(s=>s.reqUnits<=(prog.units||[]).length).map(sc=>
-<button key={sc.id} onClick={()=>{setChatMode("scenario_"+sc.id);setMsgs([{id:nid.current++,role:"a",pt:"Oi! Vamos praticar: "+sc.name+"! Começa falando comigo 😊",en:"Hi! Let's practice: "+sc.name+"! Start talking to me 😊"}])}} className="c b"
-style={{padding:"14px 18px",textAlign:"left",width:"100%"}}>
-<div style={{display:"flex",alignItems:"center",gap:12}}>
-<div style={{width:40,height:40,borderRadius:12,background:"linear-gradient(135deg,#7B1FA2,#9C27B0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{sc.icon}</div>
-<div><div style={{fontSize:14,fontWeight:700,color:T1}}>{sc.name}</div>
-<div style={{fontSize:11,color:T3,marginTop:2}}>{sc.desc}</div></div></div></button>)}
+<div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,marginBottom:2}}>
+<div style={{fontSize:13,fontWeight:800,color:T2,textTransform:"uppercase",letterSpacing:1.5}}>🎬 Role-play Scenarios</div>
+<div style={{flex:1,height:1,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.08)"}}/></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+{BIA_SCENARIOS.filter(s=>s.reqUnits<=(prog.units||[]).length).map((sc,si)=>{
+const scColors=["#7B1FA2","#00897B","#5E35B1","#00695C","#6A1B9A","#0277BD","#283593","#AD1457"];const col=scColors[si%scColors.length];
+return<button key={sc.id} onClick={()=>{setChatMode("scenario_"+sc.id);setMsgs([{id:nid.current++,role:"a",pt:"Oi! Vamos praticar: "+sc.name+"! Começa falando comigo 😊",en:"Hi! Let's practice: "+sc.name+"! Start talking to me 😊"}])}} className="b"
+style={{padding:"14px 12px",textAlign:"left",borderRadius:16,position:"relative",overflow:"hidden",
+background:dark?"rgba(30,30,30,.9)":"#fff",border:`2px solid ${col}25`,boxShadow:`0 4px 14px ${col}15`}}>
+<div style={{position:"absolute",top:-6,right:-2,fontSize:44,opacity:.1}}>{sc.icon}</div>
+<div style={{position:"relative"}}>
+<div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${col},${col}CC)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,marginBottom:8,boxShadow:`0 3px 10px ${col}40`}}>{sc.icon}</div>
+<div style={{fontSize:13,fontWeight:800,color:T1,fontFamily:"Georgia,serif",lineHeight:1.2}}>{sc.name}</div>
+<div style={{fontSize:10,color:T4,marginTop:3,lineHeight:1.3}}>{sc.desc}</div>
+</div></button>})}
+</div>
+{BIA_SCENARIOS.filter(s=>s.reqUnits>(prog.units||[]).length).length>0&&
+<div style={{fontSize:11,color:T4,textAlign:"center",marginTop:4}}>🔒 {BIA_SCENARIOS.filter(s=>s.reqUnits>(prog.units||[]).length).length} more scenarios unlock as you progress</div>}
 </>}
+{learnedW().length<=20&&<div style={{fontSize:12,color:T4,textAlign:"center",marginTop:6}}>🎬 Role-play scenarios unlock after 20 words</div>}
 </div></div>}
 
 {tab==="talk"&&chatMode&&msgs.length===0&&<div style={{padding:"40px 0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,minHeight:400,animation:"fi .4s"}}>
