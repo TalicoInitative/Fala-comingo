@@ -51,20 +51,21 @@ const toggleDark=()=>{const nd=!dark;setDark(nd);try{localStorage.setItem("fala-
 const[lastQC,setLastQC]=useState(0);
 // Voice chat listening state
 const[voiceListening,setVoiceListening]=useState(false);
+const[voiceLang,setVoiceLang]=useState("pt-BR");// pt-BR or en-US
 
 const nid=useRef(1),btm=useRef(null),mr=useRef(msgs),activeRef=useRef(false);mr.current=msgs;
 const recRef=useRef(null);const micTimerRef=useRef(null);
 
 // ROBUST shared speech recognition — handles permissions, timeouts, cleanup, all error types
 const runSpeechRecognition=useCallback((opts)=>{
-  const{onStart,onResult,onError,onEnd}=opts;
+  const{onStart,onResult,onError,onEnd,lang}=opts;
   // Already running? Stop the old one first
   if(recRef.current){try{recRef.current.abort()}catch{}recRef.current=null}
   if(micTimerRef.current){clearTimeout(micTimerRef.current);micTimerRef.current=null}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){onError?.("no_support");return}
   let r;try{r=new SR()}catch{onError?.("init_failed");return}
-  r.lang="pt-BR";r.continuous=false;r.interimResults=false;r.maxAlternatives=1;
+  r.lang=lang||"pt-BR";r.continuous=false;r.interimResults=false;r.maxAlternatives=1;
   let finished=false;
   const cleanup=()=>{if(micTimerRef.current){clearTimeout(micTimerRef.current);micTimerRef.current=null}recRef.current=null};
   r.onstart=()=>{onStart?.()};
@@ -259,7 +260,17 @@ const sysPrompt=scenarioMatch
 ?buildBiaPrompt(prog.units||[],pracVocab)+"\n\nSCENARIO: "+scenarioMatch.prompt+" Stay in character for this scenario. Keep responses short and natural."
 :chatMode==="practice"||chatMode==="voice"
 ?buildBiaPrompt(prog.units||[],pracVocab)+(chatMode==="voice"?"\n\nVOICE MODE: Keep responses SHORT (1-2 sentences max). The student is speaking aloud, so be conversational and encouraging.":"")
-:`You are Bia, warm Brazilian Portuguese tutor. Reply ONLY raw JSON:{"pt":"reply in PT","en":"English","tip":"tip or null","fix":"correction or null"} Brazilian PT only.`;
+:`You are Bia, a warm and knowledgeable Brazilian Portuguese tutor. This is FREE CHAT / ASK ME ANYTHING mode — you have NO vocabulary restrictions.
+
+You can and should:
+- Answer ANY question about Portuguese: grammar, word meanings, pronunciation, usage, slang, culture.
+- Translate freely in BOTH directions — English to Portuguese and Portuguese to English.
+- Respond fully in English when the student writes or asks in English. Match their language.
+- Explain WHY something works the way it does (verb conjugation, ser vs estar, gender, etc.).
+- Have natural conversations in Portuguese at whatever level suits the student.
+
+Always Brazilian Portuguese (never European). Be encouraging and clear.
+Reply ONLY raw JSON: {"pt":"Portuguese text (or empty string if answer is purely English explanation)","en":"English translation or your full answer/explanation","tip":"extra grammar/culture tip or null","fix":"gentle correction of any mistake they made, or null"}`;
 const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),15000);
 const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},signal:ctrl.signal,
 body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,system:sysPrompt,
@@ -1209,7 +1220,7 @@ style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden
 <div style={{fontSize:11,color:"#C9982E",fontWeight:700,marginTop:3}}>📖 {learnedW().length} words active</div></div></div></button>
 
 {/* VOICE CHAT */}
-<button onClick={()=>{setChatMode("voice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Fala comigo! Toca o microfone e fala em português! 🎙️",en:"Hi! Talk to me! Tap the mic and speak in Portuguese!"}])}} className="b"
+<button onClick={()=>{setChatMode("voice");setVoiceLang("pt-BR");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Fala comigo em português! 🎙️",en:"Hi! Talk to me in Portuguese! Tap the mic to speak. You can switch to 🇬🇧 EN to ask me questions in English, or just ask me how to say anything!"}])}} className="b"
 style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",position:"relative",background:"linear-gradient(135deg,#C2185B,#E91E63)",boxShadow:"0 8px 24px rgba(233,30,99,.35)",border:"none"}}>
 <div style={{position:"absolute",top:-15,right:-5,fontSize:80,opacity:.18}}>🎙️</div>
 <div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14,position:"relative"}}>
@@ -1221,8 +1232,8 @@ style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden
 style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",background:dark?"rgba(45,139,110,.08)":"linear-gradient(135deg,rgba(255,255,255,.97),rgba(232,245,233,.4))",border:"2px solid rgba(11,74,62,.15)",boxShadow:"0 4px 16px rgba(11,74,62,.1)"}}>
 <div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14}}>
 <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,boxShadow:"0 4px 12px rgba(11,74,62,.3)"}}>💬</div>
-<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:T1,fontFamily:"Georgia,serif"}}>Free Chat</div>
-<div style={{fontSize:12,color:T3,marginTop:2,lineHeight:1.4}}>Talk about anything, in Portuguese or English</div></div></div></button>
+<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:T1,fontFamily:"Georgia,serif"}}>Free Chat <span style={{fontSize:10,background:"rgba(11,74,62,.12)",color:"#0B4A3E",padding:"2px 7px",borderRadius:6,marginLeft:2,fontWeight:700}}>ASK ANYTHING</span></div>
+<div style={{fontSize:12,color:T3,marginTop:2,lineHeight:1.4}}>Ask questions, translate words, or speak English. Bia explains grammar and meanings — no limits.</div></div></div></button>
 
 {/* SCENARIO MODES */}
 {learnedW().length>20&&<>
@@ -1267,6 +1278,9 @@ color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{cha
 💬 {msgs.filter(m=>m.role==="u").length} msgs · {msgs.filter(m=>m.tip).length} tips · {msgs.filter(m=>m.fix).length} corrections
 </div>}
 <button onClick={()=>{setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:12,color:T3,textDecoration:"underline",padding:0}}>Switch mode</button></div></div>
+{/* Question hint for restricted modes */}
+{(chatMode==="practice"||chatMode==="voice")&&msgs.length<=2&&<div style={{margin:"0 4px",padding:"8px 12px",background:dark?"rgba(201,152,46,.1)":"rgba(255,248,225,.9)",borderRadius:10,border:"1px solid rgba(201,152,46,.2)",fontSize:12,color:dark?"#D4A027":"#8A6D00",lineHeight:1.4}}>
+💡 Stuck on a word? Just ask Bia "how do I say ___?" or "what does ___ mean?" — she'll explain in English anytime.</div>}
 {msgs.map(m=>m.role==="a"?<div key={m.id} style={{display:"flex",gap:10,maxWidth:"85%",animation:"fi .3s"}}>
 <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700}}>B</div>
 <div style={{display:"flex",flexDirection:"column",gap:5}}>
@@ -1289,9 +1303,13 @@ color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{cha
 {tab==="talk"&&chatMode&&msgs.length>0&&<div style={{background:dark?"rgba(18,18,18,.95)":"rgba(255,255,255,.92)",backdropFilter:"blur(16px)",borderTop:dark?"1px solid rgba(255,255,255,.06)":"1px solid rgba(0,0,0,.06)",padding:"12px 16px 14px",flexShrink:0}}>
 <div className="w" style={{display:"flex",gap:8,alignItems:"center"}}>
 {chatMode==="voice"?<>
-{/* VOICE INPUT — robust mic button */}
+{/* VOICE INPUT — robust mic with language toggle */}
+<button onClick={()=>setVoiceLang(voiceLang==="pt-BR"?"en-US":"pt-BR")} className="b" title="Switch speaking language"
+style={{padding:"16px 12px",borderRadius:14,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)",fontSize:13,fontWeight:800,color:voiceLang==="pt-BR"?"#0B4A3E":"#1565C0",minWidth:54}}>
+{voiceLang==="pt-BR"?"🇧🇷 PT":"🇬🇧 EN"}</button>
 <button onClick={()=>{if(busy||voiceListening)return;
 runSpeechRecognition({
+  lang:voiceLang,
   onStart:()=>{setVoiceListening(true);playSound("click")},
   onResult:(text)=>{setVoiceListening(false);sendChat(text)},
   onError:(err)=>{setVoiceListening(false);setErr(micErrorMsg(err));setTimeout(()=>setErr(null),5000)},
