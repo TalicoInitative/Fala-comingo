@@ -331,7 +331,9 @@ input:focus{outline:3px solid rgba(76,175,80,.4);outline-offset:2px}
 {/* HEADER */}
 <div style={{background:"linear-gradient(135deg,#1B5E20,#2E7D32 30%,#43A047 60%,#66BB6A 85%,#81C784)",color:"#fff",padding:`${W?"20px 40px":"16px 20px"}`,flexShrink:0,boxShadow:"0 4px 30px rgba(27,94,32,.35)"}}>
 <div className="w" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<div><div style={{fontSize:W?28:22,fontWeight:800,fontFamily:"Georgia,serif",letterSpacing:"-1px",textShadow:"0 2px 8px rgba(0,0,0,.2)"}}>Fala Comigo 🌴</div>
+<div><div style={{fontSize:W?28:22,fontWeight:800,fontFamily:"Georgia,serif",letterSpacing:"-1px",textShadow:"0 2px 8px rgba(0,0,0,.2)",display:"flex",alignItems:"center",gap:8}}>
+<svg width="28" height="20" viewBox="0 0 28 20" style={{borderRadius:3,flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,.3)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
+Fala Comigo</div>
 <div style={{display:"flex",alignItems:"center",gap:8,marginTop:3}}>
 <div style={{flex:1,background:"rgba(255,255,255,.15)",borderRadius:4,height:6,maxWidth:120}}>
 <div style={{height:"100%",borderRadius:4,background:"linear-gradient(90deg,#A5D6B0,#66BB6A)",width:`${pct}%`,transition:"width .5s"}}/></div>
@@ -363,7 +365,7 @@ input:focus{outline:3px solid rgba(76,175,80,.4);outline-offset:2px}
 
 {/* FIRST-TIME ONBOARDING */}
 {(prog.units||[]).length===0&&resumeUnit===null&&<div className="c" style={{padding:"24px 20px",marginBottom:14,textAlign:"center",animation:"pop .5s",background:"linear-gradient(135deg,rgba(255,255,255,.98),rgba(200,230,207,.3))"}}>
-<div style={{fontSize:40,marginBottom:8}}>🌴</div>
+<svg width="48" height="34" viewBox="0 0 28 20" style={{marginBottom:8,borderRadius:4,boxShadow:"0 2px 8px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
 <div style={{fontSize:22,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E"}}>Welcome to Fala Comigo!</div>
 <div style={{fontSize:14,color:T7,marginTop:6,lineHeight:1.5}}>Let's learn your first Portuguese words. Tap below to start your journey.</div>
 <button onClick={()=>startUnit(0)} className="b" style={{marginTop:16,padding:"14px 40px",borderRadius:16,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:18,fontWeight:800,boxShadow:"0 6px 24px rgba(11,74,62,.3)"}}>
@@ -437,34 +439,35 @@ return<div style={{padding:"0 4px 14px"}}>
 width:`${pct}%`,transition:"width .5s"}}/></div>
 </div>})()}
 
-{/* UNITS LIST — Vibrant cards */}
-<div style={{display:"flex",flexDirection:"column",gap:12}}>
+{/* UNITS — Organic rounded cards with floating number badges */}
+<div style={{display:"flex",flexDirection:"column",gap:16}}>
 {lvUnits(selL).map((u,i)=>{const dn=isDone(u.idx);const col=LEVEL_COLORS[selL];const preview=u.w.slice(0,3).map(w=>w[0]).join(" · ");
 return<button key={u.idx} onClick={()=>{startUnit(u.idx);playSound("click")}} className="b"
-style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",animation:`fi .3s ${i*.04}s both`,
-background:dark?"rgba(30,30,30,.95)":"rgba(255,255,255,.97)",
-boxShadow:dn?`0 4px 20px ${col}25`:`0 4px 20px rgba(0,0,0,.08)`,
-border:`2px solid ${dn?col+"50":dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,
-transition:"all .2s"}}>
-{/* Colored top accent bar */}
-<div style={{height:4,background:dn?`linear-gradient(90deg,${col},${col}80)`:dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"}}/>
-<div style={{padding:W?"16px 20px":"14px 16px",display:"flex",alignItems:"center",gap:14}}>
-{/* Unit number / check badge */}
-<div style={{width:W?52:46,height:W?52:46,borderRadius:16,
-background:dn?`linear-gradient(135deg,${col},${col}CC)`:`linear-gradient(135deg,${col}15,${col}08)`,
-display:"flex",alignItems:"center",justifyContent:"center",fontSize:dn?22:16,color:dn?"#fff":col,fontWeight:800,flexShrink:0,
-boxShadow:dn?`0 4px 12px ${col}40`:"none",fontFamily:"Georgia,serif"}}>
-{dn?"✓":u.idx+1}</div>
-<div style={{flex:1,minWidth:0}}>
-<div style={{fontSize:W?17:15,fontWeight:700,color:dn?col:dark?"#e0e0e0":"#1a1a1a",fontFamily:"Georgia,serif"}}>{u.n}</div>
-<div style={{fontSize:12,color:T4,marginTop:3,fontStyle:"italic"}}>{preview}</div>
-<div style={{display:"flex",gap:6,marginTop:6}}>
-<span style={{fontSize:10,background:`${col}12`,color:col,padding:"3px 8px",borderRadius:6,fontWeight:700}}>{u.w.length} words</span>
-{CONVOS[u.idx]&&<span style={{fontSize:10,background:"rgba(201,152,46,.1)",color:"#C9982E",padding:"3px 8px",borderRadius:6,fontWeight:600}}>💬 {CONVOS[u.idx].length}</span>}
-{STORIES[u.idx]&&<span style={{fontSize:10,background:"rgba(123,31,162,.08)",color:"#7B1FA2",padding:"3px 8px",borderRadius:6,fontWeight:600}}>📖 Story</span>}
+style={{padding:0,textAlign:"left",width:"100%",borderRadius:28,animation:`fi .4s ${i*.06}s both`,position:"relative",overflow:"visible",
+background:dn?`linear-gradient(135deg,${col}18,${col}08)`:dark?"rgba(30,30,30,.9)":"rgba(255,255,255,.97)",
+boxShadow:dn?`0 6px 28px ${col}30,inset 0 0 0 2px ${col}40`:`0 4px 20px rgba(0,0,0,.08),inset 0 0 0 2px ${dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,
+transition:"all .3s"}}>
+{/* Shimmer on completed */}
+{dn&&<div style={{position:"absolute",inset:0,borderRadius:28,background:"linear-gradient(110deg,transparent 30%,rgba(255,255,255,.15) 50%,transparent 70%)",backgroundSize:"200% 100%",animation:"shimmer 3s infinite",pointerEvents:"none"}}/>}
+<div style={{padding:W?"20px 22px 20px 80px":"18px 18px 18px 70px",minHeight:W?80:70}}>
+<div style={{fontSize:W?18:16,fontWeight:800,color:dn?col:T1,fontFamily:"Georgia,serif",lineHeight:1.2}}>{u.n}</div>
+<div style={{fontSize:12,color:T3,marginTop:4,fontStyle:"italic",letterSpacing:.3}}>{preview}</div>
+<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+<span style={{fontSize:10,background:`${col}15`,color:col,padding:"3px 10px",borderRadius:20,fontWeight:700,border:`1px solid ${col}25`}}>{u.w.length} words</span>
+{CONVOS[u.idx]&&<span style={{fontSize:10,background:"rgba(201,152,46,.1)",color:"#C9982E",padding:"3px 10px",borderRadius:20,fontWeight:600,border:"1px solid rgba(201,152,46,.15)"}}>💬 {CONVOS[u.idx].length}</span>}
+{STORIES[u.idx]&&<span style={{fontSize:10,background:"rgba(123,31,162,.08)",color:"#7B1FA2",padding:"3px 10px",borderRadius:20,fontWeight:600,border:"1px solid rgba(123,31,162,.12)"}}>📖 Story</span>}
 </div></div>
-{dn&&<div style={{fontSize:24,filter:"drop-shadow(0 2px 4px rgba(0,0,0,.15))"}}>✅</div>}
-</div></button>})}
+{/* Floating circular number badge — overlaps the left edge */}
+<div style={{position:"absolute",left:W?14:10,top:"50%",transform:"translateY(-50%)",
+width:W?54:48,height:W?54:48,borderRadius:"50%",
+background:dn?`linear-gradient(135deg,${col},${col}CC)`:dark?`linear-gradient(135deg,rgba(60,60,60,.95),rgba(45,45,45,.95))`:"linear-gradient(135deg,rgba(255,255,255,.99),rgba(245,245,245,.99))",
+display:"flex",alignItems:"center",justifyContent:"center",
+fontSize:dn?24:18,color:dn?"#fff":col,fontWeight:800,fontFamily:"Georgia,serif",
+boxShadow:dn?`0 4px 16px ${col}50,0 0 0 3px ${col}30`:`0 4px 16px rgba(0,0,0,.1),0 0 0 3px ${dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,
+transition:"all .3s",zIndex:1}}>
+{dn?"✓":u.idx+1}</div>
+{dn&&<div style={{position:"absolute",right:W?18:14,top:"50%",transform:"translateY(-50%)",fontSize:26,filter:"drop-shadow(0 2px 6px rgba(0,0,0,.15))",animation:"float 3s infinite"}}>✅</div>}
+</button>})}
 
 {/* LEVEL TEST */}
 {(()=>{const ad=allDone(selL);const passed=prog.levels.includes(selL+1);
@@ -1173,7 +1176,7 @@ style={{background:"rgba(11,74,62,.06)",border:"1px solid rgba(11,74,62,.1)",bor
 {/* PRONUNCIATION GUIDE */}
 {statsView==="sounds"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
 <div className="c" style={{padding:"18px",animation:"pop .3s"}}>
-<div style={{fontSize:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:4}}>🌴 Brazilian Portuguese Sounds</div>
+<div style={{fontSize:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:4}}>Brazilian Portuguese Sounds</div>
 <div style={{fontSize:13,color:T3}}>Tap any example to hear it</div>
 </div>
 {[
@@ -1260,7 +1263,7 @@ background:dark?"rgba(30,30,30,.9)":"#fff",border:`2px solid ${col}25`,boxShadow
 </div></div>}
 
 {tab==="talk"&&chatMode&&msgs.length===0&&<div style={{padding:"40px 0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,minHeight:400,animation:"fi .4s"}}>
-<div style={{fontSize:60}}>🌴</div>
+<svg width="60" height="43" viewBox="0 0 28 20" style={{borderRadius:6,boxShadow:"0 3px 12px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
 <div style={{fontSize:W?24:20,fontWeight:700,fontFamily:"Georgia,serif"}}>Chat with Bia</div>
 <div style={{fontSize:14,color:T3}}>Practice Portuguese or English</div>
 <button onClick={()=>setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}
