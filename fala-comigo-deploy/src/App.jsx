@@ -290,12 +290,13 @@ const T1=dark?"#e0e0e0":"#1a1a1a",T2=dark?"#bbb":"#555",T3=dark?"#888":"#888",T4
 return(
 <div style={{display:"flex",flexDirection:"column",height:"100vh",background:dark?"#121212":"linear-gradient(160deg,#FFF8E1,#FFECB3 20%,#E8F5E9 45%,#E3F2FD 65%,#F3E5F5 85%,#FFF3E0)",overflow:"hidden",fontFamily:"system-ui,-apple-system,sans-serif",position:"relative",color:dark?"#e0e0e0":"#1a1a1a"}}>
 <style>{`
-@keyframes si{from{transform:translateX(50px);opacity:0}to{transform:translateX(0);opacity:1}}
-@keyframes pop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes si{0%{transform:translateX(40px) scale(.96);opacity:0}60%{opacity:1}100%{transform:translateX(0) scale(1);opacity:1}}
+@keyframes pop{0%{transform:scale(.85);opacity:0}50%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 @keyframes cor{0%{box-shadow:0 0 0 rgba(76,175,80,.5)}50%{box-shadow:0 0 35px rgba(76,175,80,.3)}100%{box-shadow:none}}
 @keyframes wrg{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 @keyframes xf{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-70px) scale(1.4);opacity:0}}
 @keyframes fi{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cardIn{0%{transform:translateY(22px) scale(.97);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
 @keyframes gl{0%,100%{box-shadow:0 0 18px rgba(11,74,62,.3)}50%{box-shadow:0 0 36px rgba(11,74,62,.5)}}
 @keyframes cf{0%{transform:translateY(0) rotate(0) scale(1);opacity:1}100%{transform:translateY(100vh) rotate(720deg) scale(.3);opacity:0}}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
@@ -484,22 +485,17 @@ border:ad&&!passed?"2px solid rgba(255,213,79,.6)":"2px solid transparent"}}>
 </div></div>}
 
 {/* ═══ EXERCISE FLOW ═══ */}
-{tab==="learn"&&inUnit&&curEx&&<div key={`${fI}-${curEx.t}`} style={{padding:`${W?"28px 0":"18px 0"}`,animation:"si .35s",minHeight:"60vh",display:"flex",flexDirection:"column",gap:16}}>
+{tab==="learn"&&inUnit&&curEx&&<div key={`${fI}-${curEx.t}`} style={{padding:`${W?"28px 0":"18px 0"}`,animation:"cardIn .4s cubic-bezier(.22,1,.36,1)",minHeight:"60vh",display:"flex",flexDirection:"column",gap:16}}>
 
 {/* LESSON PROGRESS BAR */}
 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
 <button onClick={()=>{if(fI>2&&!confirm("Leave lesson? Progress will be lost."))return;setInUnit(false);setFlow([]);try{localStorage.removeItem("fala-resume")}catch{}}} className="b" style={{background:"none",fontSize:20,color:T4,padding:0,lineHeight:1}}>✕</button>
-<div style={{flex:1,height:6,borderRadius:3,background:"rgba(0,0,0,.06)",overflow:"hidden"}}>
-<div style={{height:"100%",borderRadius:3,background:"linear-gradient(90deg,#4CAF50,#66BB6A)",width:`${Math.round(((fI+1)/flow.length)*100)}%`,transition:"width .3s"}}/></div>
-<span style={{fontSize:12,color:T4,fontWeight:600,minWidth:40,textAlign:"right"}}>{fI+1}/{flow.length}</span>
+<div style={{flex:1,height:8,borderRadius:4,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.06)",overflow:"hidden"}}>
+<div style={{height:"100%",borderRadius:4,background:`linear-gradient(90deg,${LEVEL_COLORS[D[selU]?.l||0]},${LEVEL_COLORS[Math.min((D[selU]?.l||0)+1,6)]})`,width:`${Math.round(((fI+1)/flow.length)*100)}%`,transition:"width .4s cubic-bezier(.22,1,.36,1)"}}/></div>
+<span style={{fontSize:12,color:T4,fontWeight:600,minWidth:36,textAlign:"right"}}>{fI+1}/{flow.length}</span>
+{score>0&&<span style={{fontSize:13,fontWeight:800,color:"#4CAF50"}}>{score}✓</span>}
 </div>
 {!isTTSAvailable()&&<div style={{padding:"6px 12px",background:"rgba(255,243,224,.9)",borderRadius:8,fontSize:11,color:"#E65100",textAlign:"center"}}>🔇 Audio unavailable — read the pronunciation guide below each word</div>}
-{/* Progress bar */}
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<button onClick={()=>{setInUnit(false);setFlow([])}} className="b" style={{background:"none",fontSize:24,color:"#0B4A3E",padding:0}}>✕</button>
-<div style={{fontSize:13,color:T3,fontWeight:600}}>{fI+1}/{flow.length}</div>
-<div style={{fontSize:14,fontWeight:800,color:"#0B4A3E"}}>{score}✓</div></div>
-<div style={{background:"rgba(11,74,62,.08)",borderRadius:8,height:7}}><div style={{height:"100%",borderRadius:8,background:`linear-gradient(90deg,${LEVEL_COLORS[D[selU]?.l||0]},${LEVEL_COLORS[Math.min((D[selU]?.l||0)+1,6)]})`,width:`${((fI+1)/flow.length)*100}%`,transition:"width .5s"}}/></div>
 
 {/* UNIT INTRO CONNECTION */}
 {curEx?.t==="unit_intro"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:16}}>
@@ -1036,7 +1032,7 @@ style={{marginTop:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:
 {tab==="stats"&&<div style={{padding:"20px 0",display:"flex",flexDirection:"column",gap:16,animation:"fi .4s"}}>
 {/* Sub-tabs */}
 <div style={{display:"flex",gap:8}}>
-{[["overview","📊 Overview"],["vocab","📚 Vocabulary"],["sounds","🔊 Sounds"]].map(([id,lb])=>
+{[["overview","📊 Progress"],["vocab","📚 My Words"],["sounds","🗣️ Pronunciation"]].map(([id,lb])=>
 <button key={id} onClick={()=>{setStatsView(id);playSound("tap")}} className="b"
 style={{padding:"8px 18px",borderRadius:10,fontSize:13,fontWeight:statsView===id?700:500,
 background:statsView===id?"linear-gradient(135deg,#0B4A3E,#1B6B56)":"rgba(255,255,255,.8)",
