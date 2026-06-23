@@ -7,6 +7,7 @@ import { STORIES } from "./data/stories.js";
 import { CROSS_SENTENCES, THEME_CLUSTERS } from "./data/crossunit.js";
 import { buildBiaPrompt, BIA_SCENARIOS, CULTURAL_TIPS, FALSE_FRIENDS, SER_ESTAR_DRILLS, ACHIEVEMENTS } from "./data/biaskills.js";
 import { UNIT_INTROS } from "./data/connections.js";
+import { ACCOUNTS, checkLogin, progressKey } from "./data/accounts.js";
 import { playSound, speakPT, isTTSAvailable } from "./utils/audio.js";
 import { generateUnitFlow, generateLevelTest, generateReview, generateDailyChallenge, norm, shuffle } from "./utils/exercises.js";
 
@@ -20,6 +21,11 @@ width:`${6+Math.random()*10}px`,height:`${6+Math.random()*10}px`,background:c[i%
 borderRadius:Math.random()>.5?"50%":"2px",animation:`cf ${1.5+Math.random()*2}s ease-out ${Math.random()*.8}s forwards`}}/>)}</div>};
 
 export default function App(){
+// AUTH — must log in before using the app
+const[authUser,setAuthUser]=useState(()=>{try{return localStorage.getItem("fala-user")||null}catch{return null}});
+const[loginU,setLoginU]=useState("");const[loginP,setLoginP]=useState("");const[loginErr,setLoginErr]=useState("");
+// Per-user progress key — each account has isolated progress
+const PK = authUser ? ("fala-prog-" + authUser) : "fala-v10";
 const[tab,setTab]=useState("learn");const[selL,setSelL]=useState(0);
 const[flow,setFlow]=useState([]);const[fI,setFI]=useState(0);const[score,setScore]=useState(0);
 const[ans,setAns]=useState(null);const[typeIn,setTypeIn]=useState("");const[typed,setTyped]=useState(false);
@@ -97,7 +103,7 @@ const micErrorMsg=(err)=>{
 const checkAch=useCallback((p)=>{
 const earned=p.badges||[];const newBadges=ACHIEVEMENTS.filter(a=>!earned.includes(a.id)&&a.check(p));
 if(newBadges.length>0){const np={...p,badges:[...earned,...newBadges.map(b=>b.id)]};
-try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};setProg(np);
+try{localStorage.setItem(PK,JSON.stringify(np))}catch{};setProg(np);
 newBadges.forEach((badge,i)=>{setTimeout(()=>{setAchPop(badge);playSound("correct");setTimeout(()=>setAchPop(null),3000)},i*3500)})}
 },[]);
 useEffect(()=>{btm.current?.scrollIntoView({behavior:"smooth"})},[msgs,busy]);
@@ -105,15 +111,19 @@ useEffect(()=>{btm.current?.scrollIntoView({behavior:"smooth"})},[msgs,busy]);
 // Abort any active mic when leaving Talk tab or switching chat mode
 useEffect(()=>{return()=>{if(recRef.current){try{recRef.current.abort()}catch{}recRef.current=null}if(micTimerRef.current){clearTimeout(micTimerRef.current)}}},[tab,chatMode]);
 
-useEffect(()=>{try{const raw=localStorage.getItem("fala-v10");if(raw){const p=JSON.parse(raw);
+useEffect(()=>{if(!authUser)return;try{const raw=localStorage.getItem(PK);if(raw){const p=JSON.parse(raw);
 const today=new Date().toDateString();if(p.lastDate&&p.lastDate!==today){
 const y=new Date(Date.now()-864e5).toDateString();p.streak=p.lastDate===y?(p.streak||0)+1:1;p.lastDate=today;}
 else if(!p.lastDate){p.lastDate=today;p.streak=1;}
 // Prune daily entries older than 60 days
 if(p.daily){const cutoff=Date.now()-60*864e5;const pruned={};Object.entries(p.daily).forEach(([k,v])=>{if(new Date(k).getTime()>cutoff)pruned[k]=v});p.daily=pruned}
-setProg(p);localStorage.setItem("fala-v10",JSON.stringify(p));setTimeout(()=>checkAch(p),1500)}
+setProg(p);localStorage.setItem(PK,JSON.stringify(p));setTimeout(()=>checkAch(p),1500)}
 else{const p={xp:0,units:[],levels:[0],exDone:0,exOk:0,time:0,streak:1,lastDate:new Date().toDateString(),daily:{}};
-setProg(p);localStorage.setItem("fala-v10",JSON.stringify(p))}}catch{}},[]);
+setProg(p);localStorage.setItem(PK,JSON.stringify(p))}}catch{}},[authUser]);
+
+// Login / logout handlers
+const doLogin=()=>{const acc=checkLogin(loginU,loginP);if(acc){setLoginErr("");try{localStorage.setItem("fala-user",acc.user)}catch{};setAuthUser(acc.user);setLoginU("");setLoginP("")}else{setLoginErr("Wrong username or password. Try again.")}};
+const doLogout=()=>{try{localStorage.removeItem("fala-user")}catch{};setAuthUser(null);setProg({xp:0,units:[],levels:[0],exDone:0,exOk:0,time:0,streak:0,lastDate:null,daily:{}});setTab("learn");setInUnit(false);setFlow([])};
 
 // Check for unfinished lesson
 const[resumeUnit,setResumeUnit]=useState(null);
@@ -122,14 +132,14 @@ useEffect(()=>{try{const r=localStorage.getItem("fala-resume");if(r){const{unit}
 useEffect(()=>{activeRef.current=inUnit||pOn},[inUnit,pOn]);
 useEffect(()=>{const iv=setInterval(()=>{if(!activeRef.current)return;setProg(p=>{const d=new Date().toISOString().split('T')[0];
 const daily={...(p.daily||{})};if(!daily[d])daily[d]={ex:0,ok:0,time:0,flash:0};daily[d].time=(daily[d].time||0)+10;
-const np={...p,time:(p.time||0)+10,daily};try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};return np})},1e4);return()=>clearInterval(iv)},[]);
+const np={...p,time:(p.time||0)+10,daily};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np})},1e4);return()=>clearInterval(iv)},[]);
 
-const save=useCallback(p=>{setProg(p);try{localStorage.setItem("fala-v10",JSON.stringify(p))}catch{}},[]);
-const addXP=useCallback(n=>{setProg(p=>{const np={...p,xp:p.xp+n};try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};return np});
+const save=useCallback(p=>{setProg(p);try{localStorage.setItem(PK,JSON.stringify(p))}catch{}},[]);
+const addXP=useCallback(n=>{setProg(p=>{const np={...p,xp:p.xp+n};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np});
 setXpPop(n);setTimeout(()=>setXpPop(null),1200)},[]);
 const trackDay=useCallback((f,v)=>{setProg(p=>{const d=new Date().toISOString().split('T')[0];
 const daily={...(p.daily||{})};if(!daily[d])daily[d]={ex:0,ok:0,time:0,flash:0};daily[d][f]=(daily[d][f]||0)+v;
-const np={...p,daily};try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};return np})},[]);
+const np={...p,daily};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np})},[]);
 const celebrate=()=>{setConfetti(true);playSound("levelup");setTimeout(()=>setConfetti(false),3000)};
 
 const isOpen=l=>prog.levels.includes(l);const isDone=i=>prog.units.includes(i);
@@ -193,7 +203,7 @@ playSound("wrong");
 if(ex.q){setProg(p=>{const weak=p.weakWords||[];const exists=weak.find(w=>w[0]===ex.q||w[1]===ex.q);
 if(!exists){const word=D.flatMap(u=>u.w).find(w=>w[0]===ex.q||w[1]===ex.q);
 if(word){const nw=[...weak.filter(w=>w[0]!==word[0]),word].slice(-50);
-const np={...p,weakWords:nw};try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};return np}}return p})}
+const np={...p,weakWords:nw};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np}}return p})}
 }
 setProg(p=>({...p,exDone:(p.exDone||0)+1,exOk:(p.exOk||0)+(correct?1:0)}));
 setTimeout(advance,correct?800:1400)};
@@ -279,13 +289,38 @@ clearTimeout(timer);
 if(!r.ok)throw new Error("status_"+r.status);const d=await r.json();
 const parsed=JSON.parse((d.content.find(b=>b.type==="text")?.text||"").replace(/```json\n?|```/g,"").trim());
 setMsgs(p=>[...p,{id:nid.current++,role:"a",...parsed}]);addXP(3);speakPT(parsed.pt,()=>setSpk(true),()=>setSpk(false));
-setProg(p=>{const np={...p,chatCount:(p.chatCount||0)+1};try{localStorage.setItem("fala-v10",JSON.stringify(np))}catch{};setTimeout(()=>checkAch(np),500);return np})}
+setProg(p=>{const np={...p,chatCount:(p.chatCount||0)+1};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};setTimeout(()=>checkAch(np),500);return np})}
 catch(e){setErr(e?.name==="AbortError"?"Bia took too long — tap Send to try again.":"Couldn't reach Bia — check your connection and try again.");setTimeout(()=>setErr(null),6000)}finally{setBusy(false)}};
 
 const totalW=D.length*10;const doneW=prog.units.length*10;const pct=Math.round((doneW/totalW)*100);
 const acc=prog.exDone?Math.round((prog.exOk/prog.exDone)*100):0;
 const quizCount=flow.filter(e=>["pick_en","pick_pt","listen","type_pt","true_false","listen_type"].includes(e.t)).length;
 const T1=dark?"#e0e0e0":"#1a1a1a",T2=dark?"#bbb":"#555",T3=dark?"#888":"#888",T4=dark?"#666":"#999",T5=dark?"#555":"#bbb",T6=dark?"#aaa":"#333",T7=dark?"#999":"#666";
+
+// ═══ LOGIN GATE ═══
+if(!authUser){return(
+<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,
+background:"linear-gradient(160deg,#FFF8E1,#FFECB3 20%,#E8F5E9 45%,#E3F2FD 65%,#F3E5F5 85%,#FFF3E0)",fontFamily:"system-ui,-apple-system,sans-serif"}}>
+<style>{`@keyframes fi{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{0%{transform:scale(.85);opacity:0}50%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@keyframes rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}`}</style>
+<div style={{maxWidth:400,width:"100%",animation:"pop .5s"}}>
+<div style={{textAlign:"center",marginBottom:28}}>
+<div style={{display:"inline-flex",animation:"float 3s infinite ease-in-out"}}>
+<svg width="72" height="51" viewBox="0 0 28 20" style={{borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg></div>
+<div style={{fontSize:38,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E",marginTop:16,letterSpacing:"-1px"}}>Fala Comigo</div>
+<div style={{fontSize:15,color:"#666",marginTop:4}}>Learn Brazilian Portuguese 🇧🇷</div>
+</div>
+<div style={{background:"rgba(255,255,255,.97)",borderRadius:24,padding:"28px 24px",boxShadow:"0 12px 48px rgba(0,0,0,.12)",border:"1px solid rgba(255,255,255,.9)"}}>
+<div style={{fontSize:13,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:1.5,marginBottom:16}}>Sign in to continue</div>
+<input value={loginU} onChange={e=>setLoginU(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doLogin()}} placeholder="Username"
+style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid #e8e8e8",fontSize:16,marginBottom:12,boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
+<input value={loginP} onChange={e=>setLoginP(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doLogin()}} placeholder="Password" type="password"
+style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid #e8e8e8",fontSize:16,marginBottom:loginErr?8:16,boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
+{loginErr&&<div style={{fontSize:13,color:"#C62828",marginBottom:12,padding:"8px 12px",background:"rgba(198,40,40,.06)",borderRadius:10}}>{loginErr}</div>}
+<button onClick={doLogin} style={{width:"100%",padding:"15px",borderRadius:14,border:"none",cursor:"pointer",
+background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:17,fontWeight:800,fontFamily:"Georgia,serif",boxShadow:"0 6px 20px rgba(11,74,62,.3)"}}>Start Learning →</button>
+</div>
+<div style={{textAlign:"center",fontSize:12,color:"#aaa",marginTop:16,lineHeight:1.5}}>Your teacher gave you a username and password.<br/>Each account keeps its own progress.</div>
+</div></div>)}
 
 return(
 <div style={{display:"flex",flexDirection:"column",height:"100vh",background:dark?"#121212":"linear-gradient(160deg,#FFF8E1,#FFECB3 20%,#E8F5E9 45%,#E3F2FD 65%,#F3E5F5 85%,#FFF3E0)",overflow:"hidden",fontFamily:"system-ui,-apple-system,sans-serif",position:"relative",color:dark?"#e0e0e0":"#1a1a1a"}}>
@@ -344,6 +379,7 @@ Fala Comigo</div>
 {prog.streak>0&&<div style={{background:"rgba(255,150,0,.2)",border:"1px solid rgba(255,150,0,.3)",borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:700}}>🔥 {prog.streak}</div>}
 <div style={{background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 14px",fontSize:14,fontWeight:700}}>⭐ {prog.xp}</div>
 <button onClick={toggleDark} className="b" style={{background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 12px",fontSize:16,color:"#fff"}}>{dark?"☀️":"🌙"}</button>
+<button onClick={()=>{if(confirm("Log out? Your progress is saved to this account."))doLogout()}} className="b" style={{background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 10px",fontSize:13,color:"#fff",fontWeight:600}} title="Log out">⎋</button>
 </div></div></div>
 
 <div style={{flex:1,overflowY:"auto"}}>
@@ -511,17 +547,21 @@ border:ad&&!passed?"2px solid rgba(255,213,79,.6)":"2px solid transparent"}}>
 </div>}
 
 {/* INTRO CARD */}
-{curEx.t==="intro"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:12}}>
-<div className="c" style={{padding:W?"44px 36px":"36px 24px",textAlign:"center"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:T4,fontWeight:700}}>New word</div>
-<div style={{fontSize:W?44:36,fontWeight:700,fontFamily:"Georgia,serif",color:T1,marginTop:12}}>{curEx.word[0]}</div>
-<div style={{fontSize:W?24:20,color:"#0B4A3E",fontWeight:600,marginTop:10}}>{curEx.word[1]}</div>
-<div style={{fontSize:W?16:14,color:"#0B4A3E",fontFamily:"monospace",marginTop:12,opacity:.7}}>/{curEx.word[2]}/</div>
+{curEx.t==="intro"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:14}}>
+<div style={{borderRadius:28,overflow:"hidden",boxShadow:dark?"0 12px 40px rgba(0,0,0,.35)":"0 12px 40px rgba(11,74,62,.18)",animation:"pop .4s"}}>
+{/* Gradient top band */}
+<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",padding:"14px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-10,right:-5,fontSize:70,opacity:.15}}>✨</div>
+<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"rgba(255,255,255,.95)",fontWeight:800,position:"relative"}}>✨ New Word</div></div>
+<div style={{background:dark?"rgba(30,30,30,.97)":"rgba(255,255,255,.99)",padding:W?"40px 32px":"32px 24px",textAlign:"center"}}>
+<div style={{fontSize:W?52:42,fontWeight:800,fontFamily:"Georgia,serif",color:dark?"#fff":"#0B4A3E",letterSpacing:"-1px",animation:"fi .4s .1s both"}}>{curEx.word[0]}</div>
+<div style={{display:"inline-block",fontSize:W?24:20,color:"#fff",fontWeight:700,marginTop:14,padding:"6px 18px",borderRadius:20,background:"linear-gradient(135deg,#C9982E,#D4A027)",animation:"fi .4s .2s both",boxShadow:"0 4px 14px rgba(201,152,46,.3)"}}>{curEx.word[1]}</div>
+<div style={{fontSize:W?16:14,color:T3,fontFamily:"monospace",marginTop:16,animation:"fi .4s .3s both"}}>/{curEx.word[2]}/</div>
 <button onClick={()=>{speakPT(curEx.word[0],()=>setSpk(true),()=>setSpk(false));playSound("tap")}} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:W?84:72,height:W?84:72,fontSize:30,
-margin:"20px auto 0",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 24px rgba(11,74,62,.35)",animation:"gl 2.5s infinite"}}>🔊</button>
-<div style={{fontSize:12,color:T5,marginTop:8}}>Listen & repeat out loud</div></div>
-<button onClick={advance} className="b" style={{padding:16,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",fontSize:16,fontWeight:700,boxShadow:"0 4px 16px rgba(11,74,62,.3)",width:"100%"}}>Next →</button>
+style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:W?88:76,height:W?88:76,fontSize:32,
+margin:"24px auto 0",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 28px rgba(11,74,62,.4)",animation:spk?"pulse .6s infinite":"gl 2.5s infinite"}}>🔊</button>
+<div style={{fontSize:12,color:T4,marginTop:10,fontWeight:600}}>Tap to hear it · Say it out loud</div></div></div>
+<button onClick={advance} className="b" style={{padding:17,borderRadius:16,background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",fontSize:17,fontWeight:800,fontFamily:"Georgia,serif",boxShadow:"0 6px 20px rgba(11,74,62,.3)",width:"100%"}}>Got it →</button>
 </div>}
 
 {/* LISTEN-FIRST INTRO — hear it before you see it */}
@@ -779,35 +819,49 @@ color:revealed?(isCorrect?"#2E7D32":picked?"#C62828":"#999"):"#1a1a1a"}}>{v.toUp
 
 {/* QUIZ EXERCISES: pick_en, pick_pt, listen, type_pt, true_false, listen_type */}
 {["pick_en","pick_pt","listen","type_pt","true_false","listen_type"].includes(curEx?.t)&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:14,justifyContent:"center"}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 20px",textAlign:"center",
+<div style={{borderRadius:24,overflow:"hidden",boxShadow:dark?"0 8px 28px rgba(0,0,0,.3)":"0 8px 28px rgba(0,0,0,.1)",
 animation:ans!==null?(norm(String(ans))===norm(String(curEx.a))||(curEx.t==="true_false"&&ans===curEx.a)?"cor .5s":"wrg .4s"):"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:T4,fontWeight:700,marginBottom:12}}>
-{curEx.t==="pick_en"?"What does this mean?":curEx.t==="pick_pt"?"Say in Portuguese":
-curEx.t==="listen"?"What do you hear?":curEx.t==="type_pt"?"Type in Portuguese":
-curEx.t==="true_false"?"True or false?":"Type what you hear"}</div>
+{/* Gradient type-band header */}
+<div style={{padding:"12px",textAlign:"center",
+background:curEx.t==="pick_en"?"linear-gradient(135deg,#1565C0,#42A5F5)":curEx.t==="pick_pt"?"linear-gradient(135deg,#0B4A3E,#2D8B6E)":
+curEx.t==="listen"||curEx.t==="listen_type"?"linear-gradient(135deg,#C9982E,#FFB300)":curEx.t==="true_false"?"linear-gradient(135deg,#7B1FA2,#AB47BC)":"linear-gradient(135deg,#00897B,#26A69A)"}}>
+<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"rgba(255,255,255,.95)",fontWeight:800}}>
+{curEx.t==="pick_en"?"🔍 What does this mean?":curEx.t==="pick_pt"?"🇧🇷 Say in Portuguese":
+curEx.t==="listen"?"👂 What do you hear?":curEx.t==="type_pt"?"⌨️ Type in Portuguese":
+curEx.t==="true_false"?"⚖️ True or false?":"👂 Type what you hear"}</div></div>
+<div className="c" style={{padding:W?"32px 24px":"26px 20px",textAlign:"center",borderRadius:0,boxShadow:"none"}}>
 {(curEx.t==="listen"||curEx.t==="listen_type")?
 <button onClick={()=>speakPT(curEx.audio,()=>setSpk(true),()=>setSpk(false))} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:W?80:70,height:W?80:70,fontSize:28,
-margin:"8px auto",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 24px rgba(11,74,62,.35)",animation:"gl 2s infinite"}}>🔊</button>
-:curEx.t==="true_false"?<div><div style={{fontSize:W?28:24,fontWeight:700,fontFamily:"Georgia,serif"}}>{curEx.q}</div>
+style={{background:"linear-gradient(135deg,#C9982E,#FFB300)",color:"#fff",borderRadius:"50%",width:W?88:76,height:W?88:76,fontSize:32,
+margin:"8px auto",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 28px rgba(201,152,46,.45)",animation:spk?"pulse .6s infinite":"gl 2s infinite"}}>🔊</button>
+:curEx.t==="true_false"?<div><div style={{fontSize:W?32:26,fontWeight:800,fontFamily:"Georgia,serif",color:T1}}>{curEx.q}</div>
 <div style={{fontSize:W?20:18,color:T3,marginTop:8,fontFamily:"Georgia,serif"}}>= {curEx.shown}?</div></div>
-:<div style={{fontSize:W?28:24,fontWeight:700,fontFamily:"Georgia,serif"}}>{curEx.q}</div>}</div>
+:<div style={{fontSize:W?34:27,fontWeight:800,fontFamily:"Georgia,serif",color:curEx.t==="pick_pt"?"#0B4A3E":T1}}>{curEx.q}</div>}</div></div>
 
 {(curEx.t==="pick_en"||curEx.t==="pick_pt"||curEx.t==="listen")&&
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
+<div style={{display:"flex",flexDirection:"column",gap:10}}>
 {curEx.opts.map((o,i)=>{const isOk=norm(o)===norm(curEx.a);const isPk=ans!==null&&norm(o)===norm(String(ans));const rv=ans!==null;
-let bg="rgba(255,255,255,.95)",bd="rgba(0,0,0,.08)",tc="#1a1a1a";
-if(rv&&isOk){bg="linear-gradient(135deg,#E8F5E9,#C8E6CF)";bd="#4CAF50";tc="#2E7D32"}
-else if(rv&&isPk&&!isOk){bg="linear-gradient(135deg,#FFEBEE,#FFCDD2)";bd="#EF5350";tc="#C62828"}
-return<button key={i} onClick={()=>answerQ(o)} disabled={rv} className="o" style={{background:bg,borderColor:bd,color:tc}}>{o}</button>})}</div>}
+let bg=dark?"rgba(40,40,40,.95)":"rgba(255,255,255,.97)",bd=dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.07)",tc=dark?"#e8e8e8":"#1a1a1a",sh="0 2px 8px rgba(0,0,0,.04)";
+if(rv&&isOk){bg="linear-gradient(135deg,#43A047,#66BB6A)";bd="#43A047";tc="#fff";sh="0 6px 20px rgba(76,175,80,.4)"}
+else if(rv&&isPk&&!isOk){bg="linear-gradient(135deg,#E53935,#EF5350)";bd="#E53935";tc="#fff";sh="0 6px 20px rgba(239,83,80,.4)"}
+else if(rv){bg=dark?"rgba(30,30,30,.6)":"rgba(245,245,245,.7)";tc=dark?"#666":"#aaa"}
+return<button key={i} onClick={()=>answerQ(o)} disabled={rv} className="b" style={{
+background:bg,border:`2px solid ${bd}`,borderRadius:16,padding:W?"17px 22px":"15px 18px",fontSize:W?17:16,fontWeight:600,
+textAlign:"left",fontFamily:"Georgia,serif",color:tc,boxShadow:sh,position:"relative",
+animation:`cardIn .35s ${i*.07}s both`,transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+<span>{o}</span>
+{rv&&isOk&&<span style={{fontSize:20}}>✓</span>}
+{rv&&isPk&&!isOk&&<span style={{fontSize:20}}>✗</span>}
+</button>})}</div>}
 
-{curEx.t==="true_false"&&<div style={{display:"flex",gap:10}}>
-{[true,false].map(v=>{const rv=ans!==null;const isOk=v===curEx.a;const isPk=ans===v;
-let bg="rgba(255,255,255,.95)",bd="rgba(0,0,0,.08)",tc="#1a1a1a";
-if(rv&&isOk){bg="linear-gradient(135deg,#E8F5E9,#C8E6CF)";bd="#4CAF50";tc="#2E7D32"}
-else if(rv&&isPk&&!isOk){bg="linear-gradient(135deg,#FFEBEE,#FFCDD2)";bd="#EF5350";tc="#C62828"}
+{curEx.t==="true_false"&&<div style={{display:"flex",gap:12}}>
+{[true,false].map((v,vi)=>{const rv=ans!==null;const isOk=v===curEx.a;const isPk=ans===v;
+let bg=dark?"rgba(40,40,40,.95)":"rgba(255,255,255,.97)",bd=dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.07)",tc=dark?"#e8e8e8":"#1a1a1a",sh="0 2px 8px rgba(0,0,0,.04)";
+if(rv&&isOk){bg="linear-gradient(135deg,#43A047,#66BB6A)";bd="#43A047";tc="#fff";sh="0 6px 20px rgba(76,175,80,.4)"}
+else if(rv&&isPk&&!isOk){bg="linear-gradient(135deg,#E53935,#EF5350)";bd="#E53935";tc="#fff";sh="0 6px 20px rgba(239,83,80,.4)"}
 return<button key={String(v)} onClick={()=>answerQ(v)} disabled={rv} className="b"
-style={{flex:1,background:bg,border:`2px solid ${bd}`,borderRadius:14,padding:16,fontSize:17,fontWeight:700,color:tc}}>{v?"✓ True":"✗ False"}</button>})}</div>}
+style={{flex:1,background:bg,border:`2px solid ${bd}`,borderRadius:18,padding:"20px",fontSize:18,fontWeight:800,color:tc,boxShadow:sh,
+fontFamily:"Georgia,serif",animation:`cardIn .35s ${vi*.1}s both`,transition:"all .2s"}}>{v?"✓ True":"✗ False"}</button>})}</div>}
 
 {(curEx.t==="type_pt"||curEx.t==="listen_type")&&<div>
 <div style={{display:"flex",gap:8}}>
@@ -1113,7 +1167,7 @@ cells.push(<div key={i} title={key+': '+activity+' exercises'} style={{aspectRat
 style={{flex:1,padding:"10px",borderRadius:10,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:13,fontWeight:700}}>📤 Export</button>
 <label className="b" style={{flex:1,padding:"10px",borderRadius:10,background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)",border:"1px solid rgba(0,0,0,.08)",fontSize:13,fontWeight:700,color:T2,textAlign:"center",cursor:"pointer"}}>
 📥 Import
-<input type="file" accept=".json" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);if(p.xp!==undefined&&p.units){if(confirm("Replace current progress with backup? This cannot be undone.")){setProg(p);try{localStorage.setItem("fala-v10",JSON.stringify(p))}catch{};alert("Progress restored!")}}
+<input type="file" accept=".json" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);if(p.xp!==undefined&&p.units){if(confirm("Replace current progress with backup? This cannot be undone.")){setProg(p);try{localStorage.setItem(PK,JSON.stringify(p))}catch{};alert("Progress restored!")}}
 }catch{alert("Invalid backup file.")}};r.readAsText(f)}}/>
 </label>
 </div>
