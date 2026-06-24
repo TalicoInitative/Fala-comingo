@@ -1,1401 +1,309 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { UNITS, LEVELS, LEVEL_ICONS, LEVEL_COLORS, ALL_WORDS } from "./data/words.js";
-import { GRAMMAR } from "./data/grammar.js";
-import { CONVOS } from "./data/convos.js";
-import { SENTENCES } from "./data/sentences.js";
-import { STORIES } from "./data/stories.js";
-import { CROSS_SENTENCES, THEME_CLUSTERS } from "./data/crossunit.js";
-import { buildBiaPrompt, BIA_SCENARIOS, CULTURAL_TIPS, FALSE_FRIENDS, SER_ESTAR_DRILLS, ACHIEVEMENTS } from "./data/biaskills.js";
-import { UNIT_INTROS } from "./data/connections.js";
-import { ACCOUNTS, checkLogin, progressKey } from "./data/accounts.js";
-import { playSound, speakPT, isTTSAvailable } from "./utils/audio.js";
-import { generateUnitFlow, generateLevelTest, generateReview, generateDailyChallenge, norm, shuffle } from "./utils/exercises.js";
+import { ACCOUNTS, checkLogin } from "./data/accounts.js";
+import { speakPT, isTTSAvailable } from "./utils/audio.js";
 
-const fmt=s=>{if(s<60)return`${s}s`;if(s<3600)return`${Math.floor(s/60)}m`;return`${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`};
-const D=UNITS;const W=typeof window!=="undefined"&&window.innerWidth>=768;
-
-const Confetti=()=>{const c=["#FFD700","#FF6B6B","#4CAF50","#2196F3","#FF9800","#E91E63","#9C27B0","#00BCD4"];
-return<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,pointerEvents:"none",zIndex:200,overflow:"hidden"}}>
-{Array.from({length:50}).map((_,i)=><div key={i} style={{position:"absolute",left:`${Math.random()*100}%`,top:-10,
-width:`${6+Math.random()*10}px`,height:`${6+Math.random()*10}px`,background:c[i%c.length],
-borderRadius:Math.random()>.5?"50%":"2px",animation:`cf ${1.5+Math.random()*2}s ease-out ${Math.random()*.8}s forwards`}}/>)}</div>};
+const W=typeof window!=="undefined"&&window.innerWidth>=768;
 
 export default function App(){
-// AUTH — must log in before using the app
+// ═══ AUTH ═══
 const[authUser,setAuthUser]=useState(()=>{try{return localStorage.getItem("fala-user")||null}catch{return null}});
 const[loginU,setLoginU]=useState("");const[loginP,setLoginP]=useState("");const[loginErr,setLoginErr]=useState("");
-// Per-user progress key — each account has isolated progress
-const PK = authUser ? ("fala-prog-" + authUser) : "fala-v10";
-const[tab,setTab]=useState("learn");const[selL,setSelL]=useState(0);
-const[flow,setFlow]=useState([]);const[fI,setFI]=useState(0);const[score,setScore]=useState(0);
-const[ans,setAns]=useState(null);const[typeIn,setTypeIn]=useState("");const[typed,setTyped]=useState(false);
-const[isTest,setIsTest]=useState(false);const[inUnit,setInUnit]=useState(false);const[selU,setSelU]=useState(0);
-const[fR,setFR]=useState(false);// flash revealed
-const[convoI,setConvoI]=useState(0);const[convoAns,setConvoAns]=useState(null);// conversation state
-const[wordOrder,setWordOrder]=useState([]);// word order tapped words
-const[orderDone,setOrderDone]=useState(false);
-const[micText,setMicText]=useState("");const[micDone,setMicDone]=useState(false);const[micListening,setMicListening]=useState(false);
-const[xpPop,setXpPop]=useState(null);const[confetti,setConfetti]=useState(false);
-// Practice
-const[fD,setFD]=useState([]);const[pI,setPI]=useState(0);const[pS,setPS]=useState(false);
-const[pSt,setPSt]=useState({y:0,n:0});const[pOn,setPOn]=useState(false);const[pDone,setPDone]=useState(false);
-// Talk
-const[msgs,setMsgs]=useState([]);const[chatIn,setChatIn]=useState("");const[busy,setBusy]=useState(false);
-const[err,setErr]=useState(null);const[spk,setSpk]=useState(false);const[chatMode,setChatMode]=useState(null);// null=picker, "free"|"practice"
-// Progress
-const[prog,setProg]=useState({xp:0,units:[],levels:[0],exDone:0,exOk:0,time:0,streak:0,lastDate:null,daily:{}});
-// Stats sub-tab
-const[statsView,setStatsView]=useState("overview");// overview | vocab | sounds
-// Achievements
-const[achPop,setAchPop]=useState(null);
-// Practice more toggle
-const[showMore,setShowMore]=useState(false);
-// Dark mode
+const doLogin=()=>{const acc=checkLogin(loginU,loginP);if(acc){setLoginErr("");try{localStorage.setItem("fala-user",acc.user)}catch{};setAuthUser(acc.user);setLoginU("");setLoginP("")}else setLoginErr("Wrong username or password.")};
+const doLogout=()=>{try{localStorage.removeItem("fala-user")}catch{};setAuthUser(null)};
+const PK=authUser?"fala-chat-"+authUser:"fala-chat";
+
+// ═══ APP STATE ═══
+const[tab,setTab]=useState("chat");
 const[dark,setDark]=useState(()=>{try{return localStorage.getItem("fala-dark")==="1"}catch{return false}});
-const toggleDark=()=>{const nd=!dark;setDark(nd);try{localStorage.setItem("fala-dark",nd?"1":"0")}catch{}};
-// Saved quiz count for completion screen
-const[lastQC,setLastQC]=useState(0);
-// Voice chat listening state
-const[voiceListening,setVoiceListening]=useState(false);
-const[voiceLang,setVoiceLang]=useState("pt-BR");// pt-BR or en-US
+const toggleDark=()=>{const d=!dark;setDark(d);try{localStorage.setItem("fala-dark",d?"1":"0")}catch{}};
 
-const nid=useRef(1),btm=useRef(null),mr=useRef(msgs),activeRef=useRef(false);mr.current=msgs;
-const recRef=useRef(null);const micTimerRef=useRef(null);
+// ═══ CHAT STATE ═══
+const[msgs,setMsgs]=useState([]);const[chatIn,setChatIn]=useState("");const[busy,setBusy]=useState(false);
+const[err,setErr]=useState(null);const[spk,setSpk]=useState(false);
+const[voiceMode,setVoiceMode]=useState(false);const[voiceListening,setVoiceListening]=useState(false);
+const[voiceLang,setVoiceLang]=useState("pt-BR");
+const nid=useRef(1);const btm=useRef(null);const recRef=useRef(null);const micTimer=useRef(null);
 
-// ROBUST shared speech recognition — handles permissions, timeouts, cleanup, all error types
-const runSpeechRecognition=useCallback((opts)=>{
-  const{onStart,onResult,onError,onEnd,lang}=opts;
-  // Already running? Stop the old one first
-  if(recRef.current){try{recRef.current.abort()}catch{}recRef.current=null}
-  if(micTimerRef.current){clearTimeout(micTimerRef.current);micTimerRef.current=null}
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){onError?.("no_support");return}
-  let r;try{r=new SR()}catch{onError?.("init_failed");return}
-  r.lang=lang||"pt-BR";r.continuous=false;r.interimResults=false;r.maxAlternatives=1;
-  let finished=false;
-  const cleanup=()=>{if(micTimerRef.current){clearTimeout(micTimerRef.current);micTimerRef.current=null}recRef.current=null};
-  r.onstart=()=>{onStart?.()};
-  r.onresult=e=>{finished=true;const text=e.results?.[0]?.[0]?.transcript||"";cleanup();if(text.trim())onResult?.(text.trim());else onError?.("empty");onEnd?.()};
-  r.onerror=e=>{finished=true;cleanup();const err=e?.error||"unknown";
-    // 'aborted' just means we restarted — not a real error
-    if(err==="aborted"){onEnd?.();return}
-    onError?.(err);onEnd?.()};
-  r.onend=()=>{if(!finished){finished=true;cleanup();onError?.("no_speech");onEnd?.()}};
-  recRef.current=r;
-  // Timeout: if nothing happens in 10s, abort
-  micTimerRef.current=setTimeout(()=>{if(!finished){try{r.abort()}catch{}cleanup();onError?.("timeout");onEnd?.()}},10000);
-  try{r.start()}catch(e){cleanup();onError?.("start_failed");onEnd?.()}
-},[]);
+// ═══ FLASHCARD STATE ═══
+const[cards,setCards]=useState([]);const[newPT,setNewPT]=useState("");const[newEN,setNewEN]=useState("");
+const[studying,setStudying]=useState(false);const[studyIdx,setStudyIdx]=useState(0);const[flipped,setFlipped]=useState(false);
 
-const micErrorMsg=(err)=>{
-  switch(err){
-    case"no_support":return"Voice isn't supported in this browser. Try Chrome or Edge.";
-    case"not-allowed":case"service-not-allowed":return"Microphone blocked. Allow mic access in your browser settings.";
-    case"no-speech":case"no_speech":case"empty":return"Didn't hear anything — tap and speak clearly.";
-    case"audio-capture":return"No microphone found. Check it's plugged in.";
-    case"network":return"Network issue with voice. Check your connection.";
-    case"timeout":return"Took too long — tap to try again.";
-    default:return"Didn't catch that — tap to try again.";
-  }
-};
+// ═══ LOAD/SAVE ═══
+useEffect(()=>{if(!authUser)return;try{
+const raw=localStorage.getItem(PK+"-cards");if(raw)setCards(JSON.parse(raw));
+}catch{}},[authUser]);
+const saveCards=(c)=>{setCards(c);try{localStorage.setItem(PK+"-cards",JSON.stringify(c))}catch{}};
 
-// Check for new achievements — batch trigger all at once
-const checkAch=useCallback((p)=>{
-const earned=p.badges||[];const newBadges=ACHIEVEMENTS.filter(a=>!earned.includes(a.id)&&a.check(p));
-if(newBadges.length>0){const np={...p,badges:[...earned,...newBadges.map(b=>b.id)]};
-try{localStorage.setItem(PK,JSON.stringify(np))}catch{};setProg(np);
-newBadges.forEach((badge,i)=>{setTimeout(()=>{setAchPop(badge);playSound("correct");setTimeout(()=>setAchPop(null),3000)},i*3500)})}
-},[]);
 useEffect(()=>{btm.current?.scrollIntoView({behavior:"smooth"})},[msgs,busy]);
 
-// Abort any active mic when leaving Talk tab or switching chat mode
-useEffect(()=>{return()=>{if(recRef.current){try{recRef.current.abort()}catch{}recRef.current=null}if(micTimerRef.current){clearTimeout(micTimerRef.current)}}},[tab,chatMode]);
+// ═══ SPEECH RECOGNITION ═══
+const runSpeech=useCallback((opts)=>{
+const{onStart,onResult,onError,onEnd,lang}=opts;
+if(recRef.current){try{recRef.current.abort()}catch{};recRef.current=null}
+if(micTimer.current){clearTimeout(micTimer.current);micTimer.current=null}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){onError?.("Voice not supported in this browser. Try Chrome or Edge.");return}
+let r;try{r=new SR()}catch{onError?.("Couldn't start microphone.");return}
+r.lang=lang||"pt-BR";r.continuous=false;r.interimResults=false;r.maxAlternatives=1;
+let done=false;
+const cleanup=()=>{if(micTimer.current){clearTimeout(micTimer.current);micTimer.current=null}recRef.current=null};
+r.onstart=()=>onStart?.();
+r.onresult=e=>{done=true;const t=e.results?.[0]?.[0]?.transcript||"";cleanup();if(t.trim())onResult?.(t.trim());else onError?.("Didn't hear anything — try again.");onEnd?.()};
+r.onerror=e=>{done=true;cleanup();const err=e?.error||"unknown";
+if(err==="aborted"){onEnd?.();return}
+if(err==="not-allowed")onError?.("Microphone blocked. Allow mic access in browser settings.");
+else if(err==="no-speech")onError?.("Didn't hear anything — speak clearly and try again.");
+else onError?.("Didn't catch that — try again.");onEnd?.()};
+r.onend=()=>{if(!done){done=true;cleanup();onError?.("Didn't hear anything — try again.");onEnd?.()}};
+recRef.current=r;micTimer.current=setTimeout(()=>{if(!done){try{r.abort()}catch{};cleanup();onError?.("Took too long — tap to try again.");onEnd?.()}},10000);
+try{r.start()}catch{cleanup();onError?.("Couldn't start microphone.");onEnd?.()}
+},[]);
 
-useEffect(()=>{if(!authUser)return;try{const raw=localStorage.getItem(PK);if(raw){const p=JSON.parse(raw);
-const today=new Date().toDateString();if(p.lastDate&&p.lastDate!==today){
-const y=new Date(Date.now()-864e5).toDateString();p.streak=p.lastDate===y?(p.streak||0)+1:1;p.lastDate=today;}
-else if(!p.lastDate){p.lastDate=today;p.streak=1;}
-// Prune daily entries older than 60 days
-if(p.daily){const cutoff=Date.now()-60*864e5;const pruned={};Object.entries(p.daily).forEach(([k,v])=>{if(new Date(k).getTime()>cutoff)pruned[k]=v});p.daily=pruned}
-setProg(p);localStorage.setItem(PK,JSON.stringify(p));setTimeout(()=>checkAch(p),1500)}
-else{const p={xp:0,units:[],levels:[0],exDone:0,exOk:0,time:0,streak:1,lastDate:new Date().toDateString(),daily:{}};
-setProg(p);localStorage.setItem(PK,JSON.stringify(p))}}catch{}},[authUser]);
+useEffect(()=>{return()=>{if(recRef.current){try{recRef.current.abort()}catch{};recRef.current=null}if(micTimer.current)clearTimeout(micTimer.current)}},[tab]);
 
-// Login / logout handlers
-const doLogin=()=>{const acc=checkLogin(loginU,loginP);if(acc){setLoginErr("");try{localStorage.setItem("fala-user",acc.user)}catch{};setAuthUser(acc.user);setLoginU("");setLoginP("")}else{setLoginErr("Wrong username or password. Try again.")}};
-const doLogout=()=>{try{localStorage.removeItem("fala-user")}catch{};setAuthUser(null);setProg({xp:0,units:[],levels:[0],exDone:0,exOk:0,time:0,streak:0,lastDate:null,daily:{}});setTab("learn");setInUnit(false);setFlow([])};
-
-// Check for unfinished lesson
-const[resumeUnit,setResumeUnit]=useState(null);
-useEffect(()=>{try{const r=localStorage.getItem("fala-resume");if(r){const{unit}=JSON.parse(r);if(typeof unit==="number"&&unit>=0&&unit<D.length)setResumeUnit(unit)}}catch{}},[]);
-
-useEffect(()=>{activeRef.current=inUnit||pOn},[inUnit,pOn]);
-useEffect(()=>{const iv=setInterval(()=>{if(!activeRef.current)return;setProg(p=>{const d=new Date().toISOString().split('T')[0];
-const daily={...(p.daily||{})};if(!daily[d])daily[d]={ex:0,ok:0,time:0,flash:0};daily[d].time=(daily[d].time||0)+10;
-const np={...p,time:(p.time||0)+10,daily};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np})},1e4);return()=>clearInterval(iv)},[]);
-
-const save=useCallback(p=>{setProg(p);try{localStorage.setItem(PK,JSON.stringify(p))}catch{}},[]);
-const addXP=useCallback(n=>{setProg(p=>{const np={...p,xp:p.xp+n};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np});
-setXpPop(n);setTimeout(()=>setXpPop(null),1200)},[]);
-const trackDay=useCallback((f,v)=>{setProg(p=>{const d=new Date().toISOString().split('T')[0];
-const daily={...(p.daily||{})};if(!daily[d])daily[d]={ex:0,ok:0,time:0,flash:0};daily[d][f]=(daily[d][f]||0)+v;
-const np={...p,daily};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np})},[]);
-const celebrate=()=>{setConfetti(true);playSound("levelup");setTimeout(()=>setConfetti(false),3000)};
-
-const isOpen=l=>prog.levels.includes(l);const isDone=i=>prog.units.includes(i);
-const lvUnits=l=>D.map((u,i)=>({...u,idx:i})).filter(u=>u.l===l);
-const lvWords=l=>D.filter(u=>u.l===l).flatMap(u=>u.w);
-const learnedW=()=>D.filter((_,i)=>isDone(i)).flatMap(u=>u.w);
-const allDone=l=>lvUnits(l).every(u=>isDone(u.idx));
-
-const startUnit=i=>{
-  const u=D[i];const prev=[];
-  for(let j=Math.max(0,i-3);j<i;j++)prev.push(...D[j].w);
-  const allCompleted=learnedW();
-  const f=generateUnitFlow(u,lvWords(u.l),prev,GRAMMAR[i]||[],CONVOS[i]||[],SENTENCES[i]||[],STORIES[i]||null,allCompleted,CROSS_SENTENCES);
-  // Prepend unit intro connection if available
-  if(UNIT_INTROS[i]){const ui=UNIT_INTROS[i];const needNames=ui.needs.map(n=>D[n]?.n||"").filter(Boolean);
-  f.unshift({t:"unit_intro",data:{name:u.n,intro:ui.intro,needs:needNames,level:LEVELS[u.l]}})}
-  setFlow(f);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);
-  setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);
-  setMicText("");setMicDone(false);setSelU(i);setInUnit(true);
-  try{localStorage.setItem("fala-resume",JSON.stringify({unit:i}))}catch{}
-  if(f[0]?.t==="intro"&&f[0]?.word)speakPT(f[0].word[0],()=>setSpk(true),()=>setSpk(false));
-};
-
-// Daily challenge
-const startDaily=()=>{
-  const allCompleted=learnedW();if(!allCompleted.length)return;
-  const f=generateDailyChallenge(allCompleted,CROSS_SENTENCES);
-  setFlow(f);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);
-  setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);
-  setMicText("");setMicDone(false);setInUnit(true);playSound("click");
-};
-
-const startTest=l=>{
-  const f=generateLevelTest(lvWords(l));
-  setFlow(f);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(true);
-  setSelL(l);setInUnit(true);
-};
-
-const curEx=flow[fI];
-const advance=()=>{
-  if(fI+1>=flow.length){
-    if(isTest){const passed=score>=Math.ceil(flow.filter(e=>["pick_en","pick_pt","listen","type_pt","true_false","listen_type"].includes(e.t)).length*.8);
-      if(passed&&!prog.levels.includes(selL+1)){const np={...prog,levels:[...prog.levels,selL+1],xp:prog.xp+25};save(np);celebrate();setTimeout(()=>checkAch(np),800)}}
-    else if(!prog.units.includes(selU)){const np={...prog,units:[...prog.units,selU],xp:prog.xp+10};save(np);celebrate();setTimeout(()=>checkAch(np),800)}
-    try{localStorage.removeItem("fala-resume")}catch{}
-    setLastQC(flow.filter(e=>["pick_en","pick_pt","listen","type_pt","true_false","listen_type"].includes(e.t)).length);
-    setFlow([]);setInUnit(false);
-  }else{
-    const next=flow[fI+1];setFI(fI+1);setAns(null);setTypeIn("");setTyped(false);setFR(false);
-    setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);
-    if((next?.t==="intro"||next?.t==="mimicry")&&next?.word)speakPT(next.word[0],()=>setSpk(true),()=>setSpk(false));
-  }
-};
-
-// Quiz answer handler — tracks weak words for spaced repetition
-const answerQ=a=>{if(ans!==null)return;const ex=curEx;
-let correct;if(ex.t==="true_false")correct=a===ex.a;else correct=norm(String(a))===norm(String(ex.a));
-setAns(a);trackDay("ex",1);if(correct){trackDay("ok",1);addXP(2);playSound("correct");setScore(s=>s+1)}else{
-playSound("wrong");
-// Track weak word for spaced repetition
-if(ex.q){setProg(p=>{const weak=p.weakWords||[];const exists=weak.find(w=>w[0]===ex.q||w[1]===ex.q);
-if(!exists){const word=D.flatMap(u=>u.w).find(w=>w[0]===ex.q||w[1]===ex.q);
-if(word){const nw=[...weak.filter(w=>w[0]!==word[0]),word].slice(-50);
-const np={...p,weakWords:nw};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};return np}}return p})}
-}
-setProg(p=>({...p,exDone:(p.exDone||0)+1,exOk:(p.exOk||0)+(correct?1:0)}));
-setTimeout(advance,correct?800:1400)};
-const submitType=()=>{if(!typeIn.trim()||typed)return;setTyped(true);answerQ(typeIn.trim())};
-
-// Word order handler
-const tapWord=(w,i)=>{if(orderDone)return;playSound("tap");const nw=[...wordOrder,{w,i}];setWordOrder(nw);
-if(nw.length===curEx.scrambled.length){setOrderDone(true);
-const result=nw.map(x=>x.w).join(" ");const correct=norm(result)===norm(curEx.word[0]);
-if(correct){playSound("correct");addXP(2);setScore(s=>s+1)}else{playSound("wrong")}
-setTimeout(advance,correct?800:1400)}};
-
-// Mimicry handler (speech recognition) — uses robust shared helper
-const startMic=()=>{
-  if(micListening)return;
-  setMicText("");setMicDone(false);
-  runSpeechRecognition({
-    onStart:()=>setMicListening(true),
-    onResult:(t)=>{setMicText(t);setMicDone(true);setMicListening(false);
-      const correct=norm(t)===norm(curEx.word[0]);if(correct){playSound("correct");addXP(2)}else{playSound("wrong")}},
-    onError:(err)=>{setMicText(micErrorMsg(err));setMicDone(true);setMicListening(false)},
-    onEnd:()=>setMicListening(false)
-  });
-};
-
-// Convo handler — auto-speak Bia's lines
-const answerConvo=(optIdx)=>{if(convoAns!==null)return;setConvoAns(optIdx);
-const line=curEx.data.lines[convoI];const correct=optIdx===line.correct;
-if(correct){playSound("correct");addXP(1)}else{playSound("wrong")}
-setTimeout(()=>{const nextI=convoI+1;
-// Find next user line (skip bia lines)
-let ni=nextI;while(ni<curEx.data.lines.length&&curEx.data.lines[ni].speaker==="bia")ni++;
-if(ni>=curEx.data.lines.length){setTimeout(advance,500)}
-else{setConvoI(ni);setConvoAns(null);
-// Speak the Bia line(s) that just appeared
-for(let b=nextI;b<ni;b++){if(curEx.data.lines[b].speaker==="bia")speakPT(curEx.data.lines[b].pt)}
-}},1000)};
-
-// Auto-speak first Bia line when convo starts AND advance to first user line
-useEffect(()=>{if(curEx?.t==="convo"){
-  // Find first user line index
-  let firstUser=0;
-  while(firstUser<curEx.data.lines.length&&curEx.data.lines[firstUser].speaker==="bia")firstUser++;
-  if(firstUser>0){speakPT(curEx.data.lines[0].pt);setConvoI(firstUser)}else{setConvoI(0)}
-  setConvoAns(null)}
-if(curEx?.t==="story"&&curEx.data.story?.[0]?.pt){speakPT(curEx.data.story[0].pt)}
-},[fI]);
-
-// Practice flashcards
-const startF=()=>{const w=learnedW();if(!w.length)return;setFD(shuffle(w));setPI(0);setPS(false);setPSt({y:0,n:0});setPDone(false);setPOn(true)};
-const rateF=k=>{if(k)addXP(1);playSound(k?"correct":"wrong");trackDay("flash",1);
-setPSt(s=>({y:s.y+(k?1:0),n:s.n+(k?0:1)}));const nx=pI+1;if(nx>=fD.length){setFD(shuffle(learnedW()));setPI(0)}else setPI(nx);setPS(false)};
-const pCard=fD[pI]||["","",""];
-
-// Talk — build practice vocab from completed units
-const practiceWords=()=>{const words=[];D.forEach((_,i)=>{if(prog.units.includes(i))D[i].w.forEach(w=>words.push(`${w[0]} (${w[1]})`))});return words};
+// ═══ SEND CHAT ═══
 const sendChat=async(voiceText)=>{const t=(voiceText||chatIn).trim();if(!t||busy)return;
-setMsgs(p=>[...p,{id:nid.current++,role:"u",text:t}]);setBusy(true);setChatIn("");
-try{const hist=mr.current.slice(-6).flatMap(m=>m.role==="u"?[{role:"user",content:m.text}]:[{role:"assistant",content:m.pt}]);
+setMsgs(p=>[...p,{id:nid.current++,role:"u",text:t}]);setBusy(true);setChatIn("");setErr(null);
+try{
+const sysPrompt=`You are Bia, a warm, encouraging Brazilian Portuguese tutor. You speak naturally in Brazilian Portuguese and help learners at any level.
+
+YOUR RULES:
+- Reply ONLY raw JSON: {"pt":"Your Portuguese response","en":"English translation or explanation","tip":"Optional grammar/culture tip or null","fix":"Correction of their mistake or null"}
+- If they write in Portuguese, respond in Portuguese and praise their effort.
+- If they write in English, teach them how to say it in Portuguese.
+- If they ask a question about Portuguese (grammar, meaning, pronunciation), explain clearly in English in the "en" field.
+- Keep responses conversational and SHORT (1-3 sentences in Portuguese).
+- Use Brazilian Portuguese only (not European).
+- Be encouraging and friendly. Use emoji occasionally.
+- If they seem like a beginner, use very simple words and short sentences.
+${voiceMode?"\nVOICE MODE: Keep responses extra short (1-2 sentences). The student is speaking aloud.":""}`;
+
+const hist=msgs.slice(-10).map(m=>m.role==="u"?{role:"user",content:m.text}:{role:"assistant",content:JSON.stringify({pt:m.pt,en:m.en})});
 hist.push({role:"user",content:t});
-const pracVocab=learnedW();
-const scenarioMatch = chatMode?.startsWith("scenario_") ? BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode) : null;
-const sysPrompt=scenarioMatch
-?buildBiaPrompt(prog.units||[],pracVocab)+"\n\nSCENARIO: "+scenarioMatch.prompt+" Stay in character for this scenario. Keep responses short and natural."
-:chatMode==="practice"||chatMode==="voice"
-?buildBiaPrompt(prog.units||[],pracVocab)+(chatMode==="voice"?"\n\nVOICE MODE: Keep responses SHORT (1-2 sentences max). The student is speaking aloud, so be conversational and encouraging.":"")
-:`You are Bia, a warm and knowledgeable Brazilian Portuguese tutor. This is FREE CHAT / ASK ME ANYTHING mode — you have NO vocabulary restrictions.
 
-You can and should:
-- Answer ANY question about Portuguese: grammar, word meanings, pronunciation, usage, slang, culture.
-- Translate freely in BOTH directions — English to Portuguese and Portuguese to English.
-- Respond fully in English when the student writes or asks in English. Match their language.
-- Explain WHY something works the way it does (verb conjugation, ser vs estar, gender, etc.).
-- Have natural conversations in Portuguese at whatever level suits the student.
-
-Always Brazilian Portuguese (never European). Be encouraging and clear.
-Reply ONLY raw JSON: {"pt":"Portuguese text (or empty string if answer is purely English explanation)","en":"English translation or your full answer/explanation","tip":"extra grammar/culture tip or null","fix":"gentle correction of any mistake they made, or null"}`;
 const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),15000);
 const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},signal:ctrl.signal,
-body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,system:sysPrompt,
+body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:600,system:sysPrompt,
 messages:[{role:"user",content:hist.map(m=>`${m.role}:${m.content}`).join("\n")}]})});
 clearTimeout(timer);
-if(!r.ok)throw new Error("status_"+r.status);const d=await r.json();
-const parsed=JSON.parse((d.content.find(b=>b.type==="text")?.text||"").replace(/```json\n?|```/g,"").trim());
-setMsgs(p=>[...p,{id:nid.current++,role:"a",...parsed}]);addXP(3);speakPT(parsed.pt,()=>setSpk(true),()=>setSpk(false));
-setProg(p=>{const np={...p,chatCount:(p.chatCount||0)+1};try{localStorage.setItem(PK,JSON.stringify(np))}catch{};setTimeout(()=>checkAch(np),500);return np})}
-catch(e){setErr(e?.name==="AbortError"?"Bia took too long — tap Send to try again.":"Couldn't reach Bia — check your connection and try again.");setTimeout(()=>setErr(null),6000)}finally{setBusy(false)}};
+if(!r.ok)throw new Error("status_"+r.status);
+const d=await r.json();
+const raw=(d.content.find(b=>b.type==="text")?.text||"").replace(/```json\n?|```/g,"").trim();
+const parsed=JSON.parse(raw);
+setMsgs(p=>[...p,{id:nid.current++,role:"a",...parsed}]);
+speakPT(parsed.pt,()=>setSpk(true),()=>setSpk(false));
+}catch(e){
+setErr(e?.name==="AbortError"?"Bia took too long — try again.":"Couldn't reach Bia — check your connection.");
+setTimeout(()=>setErr(null),6000);
+}finally{setBusy(false)}};
 
-const totalW=D.length*10;const doneW=prog.units.length*10;const pct=Math.round((doneW/totalW)*100);
-const acc=prog.exDone?Math.round((prog.exOk/prog.exDone)*100):0;
-const quizCount=flow.filter(e=>["pick_en","pick_pt","listen","type_pt","true_false","listen_type"].includes(e.t)).length;
-const T1=dark?"#e0e0e0":"#1a1a1a",T2=dark?"#bbb":"#555",T3=dark?"#888":"#888",T4=dark?"#666":"#999",T5=dark?"#555":"#bbb",T6=dark?"#aaa":"#333",T7=dark?"#999":"#666";
+// ═══ COLORS ═══
+const T1=dark?"#e0e0e0":"#1a1a1a",T2=dark?"#bbb":"#555",T3=dark?"#888":"#888",T4=dark?"#666":"#999";
+const bg=dark?"#121212":"linear-gradient(160deg,#FFF8E1,#FFECB3 30%,#E8F5E9 60%,#E3F2FD 90%)";
+const cbg=dark?"rgba(30,30,30,.95)":"rgba(255,255,255,.95)";
+const bdr=dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.04)";
 
-// ═══ LOGIN GATE ═══
-if(!authUser){return(
+// ═══ LOGIN SCREEN ═══
+if(!authUser)return(
 <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,
-background:"linear-gradient(160deg,#FFF8E1,#FFECB3 20%,#E8F5E9 45%,#E3F2FD 65%,#F3E5F5 85%,#FFF3E0)",fontFamily:"system-ui,-apple-system,sans-serif"}}>
-<style>{`@keyframes fi{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{0%{transform:scale(.85);opacity:0}50%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@keyframes rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}`}</style>
-<div style={{maxWidth:400,width:"100%",animation:"pop .5s"}}>
+background:"linear-gradient(160deg,#FFF8E1,#FFECB3 30%,#E8F5E9 60%,#E3F2FD 90%)",fontFamily:"system-ui,-apple-system,sans-serif"}}>
+<style>{`@keyframes pop{0%{transform:scale(.85);opacity:0}50%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.li:focus{border-color:#0B4A3E!important;box-shadow:0 0 0 3px rgba(11,74,62,.15)!important}`}</style>
+<div style={{maxWidth:380,width:"100%",animation:"pop .5s"}}>
 <div style={{textAlign:"center",marginBottom:28}}>
 <div style={{display:"inline-flex",animation:"float 3s infinite ease-in-out"}}>
-<svg width="72" height="51" viewBox="0 0 28 20" style={{borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg></div>
-<div style={{fontSize:38,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E",marginTop:16,letterSpacing:"-1px"}}>Fala Comigo</div>
-<div style={{fontSize:15,color:"#666",marginTop:4}}>Learn Brazilian Portuguese 🇧🇷</div>
-</div>
-<div style={{background:"rgba(255,255,255,.97)",borderRadius:24,padding:"28px 24px",boxShadow:"0 12px 48px rgba(0,0,0,.12)",border:"1px solid rgba(255,255,255,.9)"}}>
-<div style={{fontSize:13,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:1.5,marginBottom:16}}>Sign in to continue</div>
-<input value={loginU} onChange={e=>setLoginU(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doLogin()}} placeholder="Username"
-style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid #e8e8e8",fontSize:16,marginBottom:12,boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
-<input value={loginP} onChange={e=>setLoginP(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doLogin()}} placeholder="Password" type="password"
-style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid #e8e8e8",fontSize:16,marginBottom:loginErr?8:16,boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
+<svg width="64" height="46" viewBox="0 0 28 20" style={{borderRadius:6,boxShadow:"0 6px 20px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg></div>
+<div style={{fontSize:34,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E",marginTop:14}}>Fala Comigo</div>
+<div style={{fontSize:14,color:"#888",marginTop:4}}>Learn Brazilian Portuguese</div></div>
+<div style={{background:"rgba(255,255,255,.97)",borderRadius:24,padding:"28px 24px",boxShadow:"0 12px 48px rgba(0,0,0,.1)"}}>
+<div style={{fontSize:12,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:1.5,marginBottom:16}}>Sign in</div>
+<input value={loginU} onChange={e=>setLoginU(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doLogin()}} placeholder="Username" className="li"
+style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid #e8e8e8",fontSize:15,marginBottom:10,boxSizing:"border-box",outline:"none",transition:"all .2s"}}/>
+<input value={loginP} onChange={e=>setLoginP(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doLogin()}} placeholder="Password" type="password" className="li"
+style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px solid #e8e8e8",fontSize:15,marginBottom:loginErr?8:16,boxSizing:"border-box",outline:"none",transition:"all .2s"}}/>
 {loginErr&&<div style={{fontSize:13,color:"#C62828",marginBottom:12,padding:"8px 12px",background:"rgba(198,40,40,.06)",borderRadius:10}}>{loginErr}</div>}
 <button onClick={doLogin} style={{width:"100%",padding:"15px",borderRadius:14,border:"none",cursor:"pointer",
-background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:17,fontWeight:800,fontFamily:"Georgia,serif",boxShadow:"0 6px 20px rgba(11,74,62,.3)"}}>Start Learning →</button>
-</div>
-<div style={{textAlign:"center",fontSize:12,color:"#aaa",marginTop:16,lineHeight:1.5}}>Your teacher gave you a username and password.<br/>Each account keeps its own progress.</div>
-</div></div>)}
+background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:16,fontWeight:800,fontFamily:"Georgia,serif",
+boxShadow:"0 6px 20px rgba(11,74,62,.3)",transition:"all .2s"}}>Start Learning →</button></div>
+<div style={{textAlign:"center",fontSize:11,color:"#bbb",marginTop:14}}>Ask your teacher for login details</div></div></div>);
 
+// ═══ MAIN APP ═══
 return(
-<div style={{display:"flex",flexDirection:"column",height:"100vh",background:dark?"#121212":"linear-gradient(160deg,#FFF8E1,#FFECB3 20%,#E8F5E9 45%,#E3F2FD 65%,#F3E5F5 85%,#FFF3E0)",overflow:"hidden",fontFamily:"system-ui,-apple-system,sans-serif",position:"relative",color:dark?"#e0e0e0":"#1a1a1a"}}>
+<div style={{display:"flex",flexDirection:"column",height:"100vh",background:bg,overflow:"hidden",fontFamily:"system-ui,-apple-system,sans-serif",color:T1}}>
 <style>{`
-@keyframes si{0%{transform:translateX(40px) scale(.96);opacity:0}60%{opacity:1}100%{transform:translateX(0) scale(1);opacity:1}}
 @keyframes pop{0%{transform:scale(.85);opacity:0}50%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
-@keyframes cor{0%{box-shadow:0 0 0 rgba(76,175,80,.5)}50%{box-shadow:0 0 35px rgba(76,175,80,.3)}100%{box-shadow:none}}
-@keyframes wrg{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-@keyframes xf{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-70px) scale(1.4);opacity:0}}
-@keyframes fi{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-@keyframes cardIn{0%{transform:translateY(22px) scale(.97);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
-@keyframes gl{0%,100%{box-shadow:0 0 18px rgba(11,74,62,.3)}50%{box-shadow:0 0 36px rgba(11,74,62,.5)}}
-@keyframes cf{0%{transform:translateY(0) rotate(0) scale(1);opacity:1}100%{transform:translateY(100vh) rotate(720deg) scale(.3);opacity:0}}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-@keyframes mic{0%,100%{box-shadow:0 0 0 0 rgba(239,83,80,.4)}50%{box-shadow:0 0 0 12px rgba(239,83,80,0)}}
-@keyframes db{0%,60%,100%{opacity:.3}30%{opacity:1}}
-@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mic{0%,100%{box-shadow:0 0 0 0 rgba(233,30,99,.4)}50%{box-shadow:0 0 0 14px rgba(233,30,99,0)}}
 @keyframes rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
-.ld{width:8px;height:8px;border-radius:50%;background:${dark?"#66BB6A":"#0B4A3E"}}.ld:nth-child(1){animation:db 1.2s 0s infinite}.ld:nth-child(2){animation:db 1.2s .2s infinite}.ld:nth-child(3){animation:db 1.2s .4s infinite}
-.w{max-width:${W?720:480}px;margin:0 auto;width:100%;padding:0 ${W?24:16}px}
-.c{background:${dark?"rgba(30,30,30,.95)":"rgba(255,255,255,.95)"};backdrop-filter:blur(20px);border:1px solid ${dark?"rgba(255,255,255,.08)":"rgba(255,255,255,.9)"};box-shadow:0 4px 28px ${dark?"rgba(0,0,0,.3)":"rgba(0,0,0,.07)"},0 0 0 1px ${dark?"rgba(255,255,255,.03)":"rgba(0,0,0,.02)"};border-radius:20px;transition:transform .2s,box-shadow .2s}
-.c:hover{${W?`transform:translateY(-3px);box-shadow:0 10px 40px ${dark?"rgba(0,0,0,.4)":"rgba(0,0,0,.12)"}`:""}}
-.b{transition:all .2s;cursor:pointer;border:none;font-family:inherit}.b:active{transform:scale(.93)}
-.o{transition:all .25s;cursor:pointer;border:2px solid ${dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.06)"};border-radius:16px;padding:${W?"16px 20px":"14px 16px"};font-size:${W?17:15}px;font-weight:500;text-align:left;background:${dark?"rgba(40,40,40,.97)":"rgba(255,255,255,.97)"};font-family:Georgia,serif;color:${dark?"#e0e0e0":"inherit"}}
-.o:hover{${W?`transform:translateY(-2px);box-shadow:0 6px 20px ${dark?"rgba(0,0,0,.3)":"rgba(0,0,0,.1)"}`:""}}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(${dark?"255,255,255":"0,0,0"},.12);border-radius:3px}
-input:focus{outline:3px solid rgba(76,175,80,.4);outline-offset:2px}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.btn{transition:all .15s;cursor:pointer;border:none;font-family:inherit}.btn:active{transform:scale(.93)}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(${dark?"255,255,255":"0,0,0"},.1);border-radius:3px}
 `}</style>
 
-{confetti&&<Confetti/>}
-{xpPop&&<div style={{position:"fixed",top:80,left:"50%",transform:"translateX(-50%)",zIndex:100,animation:"xf 1.2s ease-out forwards",pointerEvents:"none"}}>
-<div style={{background:"linear-gradient(135deg,#FFD700,#FF8C00)",color:"#fff",fontWeight:900,fontSize:22,padding:"10px 28px",borderRadius:30,boxShadow:"0 6px 24px rgba(255,140,0,.5)",fontFamily:"Georgia,serif"}}>+{xpPop} XP</div></div>}
-
-{/* ACHIEVEMENT POPUP */}
-{achPop&&<div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",zIndex:200,animation:"pop .5s",pointerEvents:"none"}}>
-<div style={{background:"linear-gradient(135deg,#1B5E20,#4CAF50)",color:"#fff",padding:"14px 28px",borderRadius:20,boxShadow:"0 8px 32px rgba(27,94,32,.5)",display:"flex",alignItems:"center",gap:12,minWidth:240}}>
-<div style={{fontSize:36}}>{achPop.icon}</div>
-<div><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,opacity:.8}}>Achievement Unlocked!</div>
-<div style={{fontSize:18,fontWeight:800,fontFamily:"Georgia,serif"}}>{achPop.name}</div>
-<div style={{fontSize:12,opacity:.85}}>{achPop.desc}</div></div>
-</div></div>}
-
-{/* HEADER */}
-<div style={{background:"linear-gradient(135deg,#1B5E20,#2E7D32 30%,#43A047 60%,#66BB6A 85%,#81C784)",color:"#fff",padding:`${W?"20px 40px":"16px 20px"}`,flexShrink:0,boxShadow:"0 4px 30px rgba(27,94,32,.35)"}}>
-<div className="w" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<div><div style={{fontSize:W?28:22,fontWeight:800,fontFamily:"Georgia,serif",letterSpacing:"-1px",textShadow:"0 2px 8px rgba(0,0,0,.2)",display:"flex",alignItems:"center",gap:8}}>
-<svg width="28" height="20" viewBox="0 0 28 20" style={{borderRadius:3,flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,.3)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
-Fala Comigo</div>
-<div style={{display:"flex",alignItems:"center",gap:8,marginTop:3}}>
-<div style={{flex:1,background:"rgba(255,255,255,.15)",borderRadius:4,height:6,maxWidth:120}}>
-<div style={{height:"100%",borderRadius:4,background:"linear-gradient(90deg,#A5D6B0,#66BB6A)",width:`${pct}%`,transition:"width .5s"}}/></div>
-<span style={{fontSize:11,opacity:.6}}>{pct}% · {doneW} words</span>
+{/* ═══ HEADER ═══ */}
+<div style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,boxShadow:"0 4px 20px rgba(0,0,0,.15)"}}>
+<div style={{display:"flex",alignItems:"center",gap:8}}>
+<svg width="24" height="17" viewBox="0 0 28 20" style={{borderRadius:3,flexShrink:0}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
+<span style={{fontSize:W?22:18,fontWeight:800,fontFamily:"Georgia,serif",color:"#fff"}}>Fala Comigo</span></div>
+<div style={{display:"flex",gap:6,alignItems:"center"}}>
+<span style={{fontSize:12,color:"rgba(255,255,255,.7)"}}>{authUser}</span>
+<button onClick={toggleDark} className="btn" style={{background:"rgba(255,255,255,.12)",borderRadius:16,padding:"4px 10px",fontSize:14,color:"#fff"}}>{dark?"☀️":"🌙"}</button>
+<button onClick={()=>{if(confirm("Log out?"))doLogout()}} className="btn" style={{background:"rgba(255,255,255,.12)",borderRadius:16,padding:"4px 10px",fontSize:12,color:"#fff"}}>⎋</button>
 </div></div>
-<div style={{display:"flex",gap:8,alignItems:"center"}}>
-{prog.streak>0&&<div style={{background:"rgba(255,150,0,.2)",border:"1px solid rgba(255,150,0,.3)",borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:700}}>🔥 {prog.streak}</div>}
-<div style={{background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 14px",fontSize:14,fontWeight:700}}>⭐ {prog.xp}</div>
-<button onClick={toggleDark} className="b" style={{background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 12px",fontSize:16,color:"#fff"}}>{dark?"☀️":"🌙"}</button>
-<button onClick={()=>{if(confirm("Log out? Your progress is saved to this account."))doLogout()}} className="b" style={{background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 10px",fontSize:13,color:"#fff",fontWeight:600}} title="Log out">⎋</button>
-</div></div></div>
 
-<div style={{flex:1,overflowY:"auto"}}>
-<div className="w">
+{/* ═══ CONTENT ═══ */}
+<div style={{flex:1,overflowY:"auto",overflowX:"hidden"}}>
+<div style={{maxWidth:W?600:480,margin:"0 auto",width:"100%",padding:`0 ${W?20:14}px`}}>
 
-{/* ═══ LEARN TAB ═══ */}
-{tab==="learn"&&!inUnit&&<div style={{padding:`${W?"24px 0":"16px 0"}`,animation:"fi .3s"}}>
-
-{/* RESUME UNFINISHED LESSON */}
-{resumeUnit!==null&&!isDone(resumeUnit)&&<div className="c" style={{padding:"14px 18px",marginBottom:14,border:"2px solid rgba(255,183,77,.5)",background:"linear-gradient(135deg,rgba(255,243,224,.95),rgba(255,255,255,.95))",animation:"pop .4s"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<div>
-<div style={{fontSize:13,fontWeight:700,color:"#E65100"}}>📌 Unfinished Lesson</div>
-<div style={{fontSize:12,color:T3,marginTop:2}}>{D[resumeUnit]?.n}</div>
-</div>
-<div style={{display:"flex",gap:8}}>
-<button onClick={()=>{startUnit(resumeUnit);setResumeUnit(null)}} className="b" style={{padding:"8px 16px",borderRadius:10,background:"linear-gradient(135deg,#E65100,#FF8F00)",color:"#fff",fontSize:13,fontWeight:700}}>Resume</button>
-<button onClick={()=>{try{localStorage.removeItem("fala-resume")}catch{};setResumeUnit(null)}} className="b" style={{padding:"8px 12px",borderRadius:10,background:"rgba(0,0,0,.05)",fontSize:12,color:T3}}>Dismiss</button>
-</div></div></div>}
-
-{/* FIRST-TIME ONBOARDING */}
-{(prog.units||[]).length===0&&resumeUnit===null&&<div className="c" style={{padding:"24px 20px",marginBottom:14,textAlign:"center",animation:"pop .5s",background:"linear-gradient(135deg,rgba(255,255,255,.98),rgba(200,230,207,.3))"}}>
-<svg width="48" height="34" viewBox="0 0 28 20" style={{marginBottom:8,borderRadius:4,boxShadow:"0 2px 8px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
-<div style={{fontSize:22,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E"}}>Welcome to Fala Comigo!</div>
-<div style={{fontSize:14,color:T7,marginTop:6,lineHeight:1.5}}>Let's learn your first Portuguese words. Tap below to start your journey.</div>
-<button onClick={()=>startUnit(0)} className="b" style={{marginTop:16,padding:"14px 40px",borderRadius:16,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:18,fontWeight:800,boxShadow:"0 6px 24px rgba(11,74,62,.3)"}}>
-🚀 Start First Lesson</button>
-</div>}
-
-{/* CONTINUE BUTTON — next uncompleted unit */}
-{(prog.units||[]).length>0&&!isDone((()=>{for(let i=0;i<D.length;i++)if(!isDone(i)&&isOpen(D[i].l))return i;return-1})())&&(()=>{
-const nextIdx=(()=>{for(let i=0;i<D.length;i++)if(!isDone(i)&&isOpen(D[i].l))return i;return-1})();
-if(nextIdx<0)return null;const nextUnit=D[nextIdx];
-return<button onClick={()=>{setSelL(nextUnit.l);startUnit(nextIdx)}} className="c b" style={{width:"100%",padding:"16px 20px",marginBottom:14,textAlign:"left",border:"2px solid rgba(11,74,62,.15)",animation:"pop .4s"}}>
-<div style={{display:"flex",alignItems:"center",gap:14}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:"#fff",fontWeight:800,flexShrink:0}}>▶</div>
-<div style={{flex:1}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,color:T3,fontWeight:700}}>Continue Learning</div>
-<div style={{fontSize:17,fontWeight:700,color:"#0B4A3E",fontFamily:"Georgia,serif",marginTop:2}}>{nextUnit.n}</div>
-<div style={{fontSize:12,color:T4,marginTop:2}}>Unit {nextIdx+1} · {LEVELS[nextUnit.l]}</div>
-</div></div></button>})()}
-
-{/* WORD OF THE DAY */}
-{(()=>{const d=new Date();const dayIdx=(d.getFullYear()*1000+d.getMonth()*32+d.getDate())%ALL_WORDS.length;const wotd=ALL_WORDS[dayIdx];
-return<div className="c" style={{padding:"16px 18px",marginBottom:14,animation:"pop .4s",background:"linear-gradient(135deg,rgba(255,255,255,.97),rgba(255,243,224,.5))"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#C9982E",fontWeight:700}}>✨ Word of the Day</div>
-<button onClick={()=>{speakPT(wotd[0],()=>setSpk(true),()=>setSpk(false));playSound("tap")}} className="b" style={{background:"linear-gradient(135deg,#C9982E,#D4A027)",color:"#fff",borderRadius:10,padding:"6px 14px",fontSize:13,fontWeight:700}}>🔊 Hear it</button>
-</div>
-<div style={{fontSize:W?32:26,fontWeight:800,fontFamily:"Georgia,serif",color:T1,marginTop:8}}>{wotd[0]}</div>
-<div style={{fontSize:W?18:16,color:"#0B4A3E",fontWeight:600,marginTop:4}}>{wotd[1]}</div>
-<div style={{fontSize:13,color:T3,fontFamily:"monospace",marginTop:4}}>/{wotd[2]}/</div>
-</div>})()}
-
-{/* CULTURAL TIP */}
-{(()=>{const d=new Date();const tipIdx=(d.getFullYear()*1000+d.getMonth()*32+d.getDate()+7)%CULTURAL_TIPS.length;const tip=CULTURAL_TIPS[tipIdx];
-return<div className="c" style={{padding:"14px 16px",marginBottom:14,animation:"fi .3s .1s both",border:"1px solid rgba(76,175,80,.15)"}}>
-<div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-<div style={{fontSize:11,color:"#2E7D32",fontWeight:700,whiteSpace:"nowrap"}}>{tip.cat}</div>
-<div style={{fontSize:13,color:T2,lineHeight:1.5}}>{tip.tip}</div>
-</div></div>})()}
-
-{/* LEVEL SELECTOR — Circular badges with progress rings */}
-<div style={{display:"flex",gap:10,overflowX:"auto",padding:"4px 4px 16px",WebkitOverflowScrolling:"touch"}}>
-{LEVELS.map((name,l)=>{const open=isOpen(l);const active=selL===l;const col=LEVEL_COLORS[l];
-const uList=D.map((u,i)=>({...u,idx:i})).filter(u=>u.l===l);const done=uList.filter(u=>isDone(u.idx)).length;const ringPct=uList.length?Math.round(done/uList.length*100):0;
-return<button key={l} onClick={()=>{if(open){setSelL(l);playSound("tap")}}} disabled={!open}
-className="b" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"6px 4px",minWidth:W?72:62,flexShrink:0,background:"transparent",opacity:open?1:.3}}>
-<div style={{position:"relative",width:W?52:44,height:W?52:44}}>
-{/* Progress ring */}
-<svg width={W?52:44} height={W?52:44} style={{position:"absolute",top:0,left:0,transform:"rotate(-90deg)"}}>
-<circle cx={W?26:22} cy={W?26:22} r={W?22:18} fill="none" stroke={dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.06)"} strokeWidth="3"/>
-{open&&ringPct>0&&<circle cx={W?26:22} cy={W?26:22} r={W?22:18} fill="none" stroke={col} strokeWidth="3" strokeDasharray={`${ringPct*1.38} 200`} strokeLinecap="round"/>}
-</svg>
-<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",
-background:active?`linear-gradient(135deg,${col},${col}DD)`:dark?"rgba(40,40,40,.9)":"rgba(255,255,255,.95)",
-borderRadius:"50%",margin:3,fontSize:active?20:16,
-boxShadow:active?`0 4px 16px ${col}60`:"0 2px 8px rgba(0,0,0,.06)",
-border:active?"none":`2px solid ${open?col+"40":"transparent"}`,
-transition:"all .25s",transform:active?"scale(1.1)":"scale(1)"}}>
-{open?LEVEL_ICONS[l]:"🔒"}</div></div>
-<div style={{fontSize:10,fontWeight:active?800:600,color:active?col:T4,textAlign:"center",lineHeight:1.2,maxWidth:64}}>{name.split(" ").slice(0,2).join(" ")}</div>
-</button>})}
-</div>
-
-{/* LEVEL PROGRESS BAR */}
-{(()=>{const units=lvUnits(selL);const done=units.filter(u=>isDone(u.idx)).length;const pct=units.length?Math.round(done/units.length*100):0;
-return<div style={{padding:"0 4px 14px"}}>
-<div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:T7,marginBottom:6}}>
-<span style={{fontWeight:700,color:LEVEL_COLORS[selL]}}>{LEVEL_ICONS[selL]} {LEVELS[selL]}</span>
-<span style={{fontWeight:600}}>{done}/{units.length} · {pct}%</span></div>
-<div style={{background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)",borderRadius:6,height:8,overflow:"hidden"}}>
-<div style={{height:"100%",borderRadius:6,background:`linear-gradient(90deg,${LEVEL_COLORS[selL]},${LEVEL_COLORS[Math.min(selL+1,6)]})`,
-width:`${pct}%`,transition:"width .5s"}}/></div>
-</div>})()}
-
-{/* UNITS — Organic rounded cards with floating number badges */}
-<div style={{display:"flex",flexDirection:"column",gap:16}}>
-{lvUnits(selL).map((u,i)=>{const dn=isDone(u.idx);const col=LEVEL_COLORS[selL];const preview=u.w.slice(0,3).map(w=>w[0]).join(" · ");
-return<button key={u.idx} onClick={()=>{startUnit(u.idx);playSound("click")}} className="b"
-style={{padding:0,textAlign:"left",width:"100%",borderRadius:28,animation:`fi .4s ${i*.06}s both`,position:"relative",overflow:"visible",
-background:dn?`linear-gradient(135deg,${col}18,${col}08)`:dark?"rgba(30,30,30,.9)":"rgba(255,255,255,.97)",
-boxShadow:dn?`0 6px 28px ${col}30,inset 0 0 0 2px ${col}40`:`0 4px 20px rgba(0,0,0,.08),inset 0 0 0 2px ${dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,
-transition:"all .3s"}}>
-{/* Shimmer on completed */}
-{dn&&<div style={{position:"absolute",inset:0,borderRadius:28,background:"linear-gradient(110deg,transparent 30%,rgba(255,255,255,.15) 50%,transparent 70%)",backgroundSize:"200% 100%",animation:"shimmer 3s infinite",pointerEvents:"none"}}/>}
-<div style={{padding:W?"20px 22px 20px 80px":"18px 18px 18px 70px",minHeight:W?80:70}}>
-<div style={{fontSize:W?18:16,fontWeight:800,color:dn?col:T1,fontFamily:"Georgia,serif",lineHeight:1.2}}>{u.n}</div>
-<div style={{fontSize:12,color:T3,marginTop:4,fontStyle:"italic",letterSpacing:.3}}>{preview}</div>
-<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-<span style={{fontSize:10,background:`${col}15`,color:col,padding:"3px 10px",borderRadius:20,fontWeight:700,border:`1px solid ${col}25`}}>{u.w.length} words</span>
-{CONVOS[u.idx]&&<span style={{fontSize:10,background:"rgba(201,152,46,.1)",color:"#C9982E",padding:"3px 10px",borderRadius:20,fontWeight:600,border:"1px solid rgba(201,152,46,.15)"}}>💬 {CONVOS[u.idx].length}</span>}
-{STORIES[u.idx]&&<span style={{fontSize:10,background:"rgba(123,31,162,.08)",color:"#7B1FA2",padding:"3px 10px",borderRadius:20,fontWeight:600,border:"1px solid rgba(123,31,162,.12)"}}>📖 Story</span>}
-</div></div>
-{/* Floating circular number badge — overlaps the left edge */}
-<div style={{position:"absolute",left:W?14:10,top:"50%",transform:"translateY(-50%)",
-width:W?54:48,height:W?54:48,borderRadius:"50%",
-background:dn?`linear-gradient(135deg,${col},${col}CC)`:dark?`linear-gradient(135deg,rgba(60,60,60,.95),rgba(45,45,45,.95))`:"linear-gradient(135deg,rgba(255,255,255,.99),rgba(245,245,245,.99))",
-display:"flex",alignItems:"center",justifyContent:"center",
-fontSize:dn?24:18,color:dn?"#fff":col,fontWeight:800,fontFamily:"Georgia,serif",
-boxShadow:dn?`0 4px 16px ${col}50,0 0 0 3px ${col}30`:`0 4px 16px rgba(0,0,0,.1),0 0 0 3px ${dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,
-transition:"all .3s",zIndex:1}}>
-{dn?"✓":u.idx+1}</div>
-{dn&&<div style={{position:"absolute",right:W?18:14,top:"50%",transform:"translateY(-50%)",fontSize:26,filter:"drop-shadow(0 2px 6px rgba(0,0,0,.15))",animation:"float 3s infinite"}}>✅</div>}
-</button>})}
-
-{/* LEVEL TEST */}
-{(()=>{const ad=allDone(selL);const passed=prog.levels.includes(selL+1);
-return selL<LEVELS.length-1&&<div style={{marginTop:8}}>
-{ad&&!passed&&<div style={{textAlign:"center",fontSize:13,fontWeight:700,color:"#C9982E",marginBottom:6,animation:"pulse 2s infinite"}}>🎉 All units complete — take the test to unlock Level {selL+2}!</div>}
-<button onClick={()=>{if(ad&&!passed){startTest(selL);playSound("click")}}} disabled={!ad||passed}
-className="b" style={{background:passed?"linear-gradient(135deg,#A5D6B0,#66BB6A)":ad?"linear-gradient(135deg,#C9982E,#FFD54F)":"rgba(201,152,46,.1)",
-borderRadius:18,padding:W?22:18,textAlign:"center",width:"100%",opacity:ad?1:.35,color:passed?"#fff":ad?"#fff":"#999",
-boxShadow:ad&&!passed?"0 6px 24px rgba(201,152,46,.45)":"none",animation:ad&&!passed?"pulse 2s infinite":"none",
-border:ad&&!passed?"2px solid rgba(255,213,79,.6)":"2px solid transparent"}}>
-<div style={{fontSize:W?20:17,fontWeight:800}}>{passed?"✓ Test Passed":"🏆 LEVEL TEST"}</div>
-{!passed&&<div style={{fontSize:13,opacity:.8,marginTop:4}}>{ad?"20 questions · 80% to unlock next level":"Complete all units first"}</div>}
-</button></div>})()}
-</div></div>}
-
-{/* ═══ EXERCISE FLOW ═══ */}
-{tab==="learn"&&inUnit&&curEx&&<div key={`${fI}-${curEx.t}`} style={{padding:`${W?"28px 0":"18px 0"}`,animation:"cardIn .4s cubic-bezier(.22,1,.36,1)",minHeight:"60vh",display:"flex",flexDirection:"column",gap:16}}>
-
-{/* LESSON PROGRESS BAR */}
-<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-<button onClick={()=>{if(fI>2&&!confirm("Leave lesson? Progress will be lost."))return;setInUnit(false);setFlow([]);try{localStorage.removeItem("fala-resume")}catch{}}} className="b" style={{background:"none",fontSize:20,color:T4,padding:0,lineHeight:1}}>✕</button>
-<div style={{flex:1,height:8,borderRadius:4,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.06)",overflow:"hidden"}}>
-<div style={{height:"100%",borderRadius:4,background:`linear-gradient(90deg,${LEVEL_COLORS[D[selU]?.l||0]},${LEVEL_COLORS[Math.min((D[selU]?.l||0)+1,6)]})`,width:`${Math.round(((fI+1)/flow.length)*100)}%`,transition:"width .4s cubic-bezier(.22,1,.36,1)"}}/></div>
-<span style={{fontSize:12,color:T4,fontWeight:600,minWidth:36,textAlign:"right"}}>{fI+1}/{flow.length}</span>
-{score>0&&<span style={{fontSize:13,fontWeight:800,color:"#4CAF50"}}>{score}✓</span>}
-</div>
-{!isTTSAvailable()&&<div style={{padding:"6px 12px",background:"rgba(255,243,224,.9)",borderRadius:8,fontSize:11,color:"#E65100",textAlign:"center"}}>🔇 Audio unavailable — read the pronunciation guide below each word</div>}
-
-{/* UNIT INTRO CONNECTION */}
-{curEx?.t==="unit_intro"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:16}}>
-<div className="c" style={{padding:W?"40px 30px":"30px 22px",textAlign:"center",animation:"pop .4s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#C9982E",fontWeight:700}}>{curEx.data.level}</div>
-<div style={{fontSize:W?32:26,fontWeight:700,fontFamily:"Georgia,serif",color:T1,marginTop:12}}>{curEx.data.name}</div>
-<div style={{fontSize:W?17:15,color:T2,marginTop:14,lineHeight:1.6,fontFamily:"Georgia,serif"}}>{curEx.data.intro}</div>
-{curEx.data.needs.length>0&&<div style={{marginTop:16,display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>
-{curEx.data.needs.map((n,i)=><span key={i} style={{background:"rgba(11,74,62,.08)",color:"#0B4A3E",padding:"4px 12px",borderRadius:8,fontSize:12,fontWeight:600}}>✓ {n}</span>)}
-</div>}
-</div>
-<button onClick={advance} className="b" style={{padding:16,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",color:"#fff",fontSize:17,fontWeight:700,boxShadow:"0 4px 16px rgba(201,152,46,.3)",width:"100%"}}>Let's go! 🚀</button>
-</div>}
-
-{/* INTRO CARD */}
-{curEx.t==="intro"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:14}}>
-<div style={{borderRadius:28,overflow:"hidden",boxShadow:dark?"0 12px 40px rgba(0,0,0,.35)":"0 12px 40px rgba(11,74,62,.18)",animation:"pop .4s"}}>
-{/* Gradient top band */}
-<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",padding:"14px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-10,right:-5,fontSize:70,opacity:.15}}>✨</div>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"rgba(255,255,255,.95)",fontWeight:800,position:"relative"}}>✨ New Word</div></div>
-<div style={{background:dark?"rgba(30,30,30,.97)":"rgba(255,255,255,.99)",padding:W?"40px 32px":"32px 24px",textAlign:"center"}}>
-<div style={{fontSize:W?52:42,fontWeight:800,fontFamily:"Georgia,serif",color:dark?"#fff":"#0B4A3E",letterSpacing:"-1px",animation:"fi .4s .1s both"}}>{curEx.word[0]}</div>
-<div style={{display:"inline-block",fontSize:W?24:20,color:"#fff",fontWeight:700,marginTop:14,padding:"6px 18px",borderRadius:20,background:"linear-gradient(135deg,#C9982E,#D4A027)",animation:"fi .4s .2s both",boxShadow:"0 4px 14px rgba(201,152,46,.3)"}}>{curEx.word[1]}</div>
-<div style={{fontSize:W?16:14,color:T3,fontFamily:"monospace",marginTop:16,animation:"fi .4s .3s both"}}>/{curEx.word[2]}/</div>
-<button onClick={()=>{speakPT(curEx.word[0],()=>setSpk(true),()=>setSpk(false));playSound("tap")}} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:W?88:76,height:W?88:76,fontSize:32,
-margin:"24px auto 0",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 28px rgba(11,74,62,.4)",animation:spk?"pulse .6s infinite":"gl 2.5s infinite"}}>🔊</button>
-<div style={{fontSize:12,color:T4,marginTop:10,fontWeight:600}}>Tap to hear it · Say it out loud</div></div></div>
-<button onClick={advance} className="b" style={{padding:17,borderRadius:16,background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",fontSize:17,fontWeight:800,fontFamily:"Georgia,serif",boxShadow:"0 6px 20px rgba(11,74,62,.3)",width:"100%"}}>Got it →</button>
-</div>}
-
-{/* LISTEN-FIRST INTRO — hear it before you see it */}
-{curEx.t==="intro_listen"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:12}}>
-<div className="c" style={{padding:W?"44px 36px":"36px 24px",textAlign:"center"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#C9982E",fontWeight:700}}>👂 Listen first!</div>
-{!fR?<>
-<div style={{fontSize:W?72:60,marginTop:16}}>🔊</div>
-<div style={{fontSize:16,color:T3,marginTop:12,fontFamily:"Georgia,serif"}}>What do you hear?</div>
-<button onClick={()=>{speakPT(curEx.word[0],()=>setSpk(true),()=>setSpk(false))}} className="b"
-style={{background:"linear-gradient(135deg,#C9982E,#D4A027)",color:"#fff",borderRadius:14,padding:"12px 32px",margin:"20px auto 0",fontSize:16,fontWeight:700}}>🔊 Play again</button>
-<button onClick={()=>setFR(true)} className="b"
-style={{background:"none",color:"#0B4A3E",fontSize:15,fontWeight:600,marginTop:16,textDecoration:"underline"}}>Reveal the word →</button>
-</>:<>
-<div style={{fontSize:W?44:36,fontWeight:700,fontFamily:"Georgia,serif",color:T1,marginTop:12,animation:"pop .3s"}}>{curEx.word[0]}</div>
-<div style={{fontSize:W?24:20,color:"#0B4A3E",fontWeight:600,marginTop:10,animation:"fi .3s .1s both"}}>{curEx.word[1]}</div>
-<div style={{fontSize:W?16:14,color:"#0B4A3E",fontFamily:"monospace",marginTop:12,opacity:.7,animation:"fi .3s .2s both"}}>/{curEx.word[2]}/</div>
-<button onClick={()=>{speakPT(curEx.word[0],()=>setSpk(true),()=>setSpk(false))}} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:64,height:64,fontSize:26,margin:"16px auto 0",display:"flex",alignItems:"center",justifyContent:"center"}}>🔊</button>
-</>}
-</div>
-{fR&&<button onClick={()=>{setFR(false);advance()}} className="b" style={{padding:16,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",fontSize:16,fontWeight:700,width:"100%"}}>Next →</button>}
-</div>}
-
-{/* SENTENCE BUILDER — arrange word bubbles */}
-{curEx.t==="sentence_build"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:14}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 18px",textAlign:"center",animation:"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#7B1FA2",fontWeight:700,marginBottom:8}}>🧩 Build the sentence</div>
-<div style={{fontSize:W?16:14,color:T3,fontFamily:"Georgia,serif",marginBottom:16}}>{curEx.data.en}</div>
-{/* Built sentence display */}
-<div style={{minHeight:48,padding:"10px 14px",borderRadius:12,background:"rgba(11,74,62,.04)",border:"2px dashed rgba(11,74,62,.15)",marginBottom:14,display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>
-{wordOrder.map((wo,i)=><span key={i} onClick={()=>{if(!orderDone)setWordOrder(wordOrder.filter((_,j)=>j!==i))}}
-style={{background:"#0B4A3E",color:"#fff",padding:"6px 14px",borderRadius:10,fontSize:15,fontWeight:600,fontFamily:"Georgia,serif",cursor:"pointer"}}>{wo.w}</span>)}
-{wordOrder.length===0&&<span style={{color:T5,fontSize:14}}>Tap words below to build...</span>}
-</div>
-{/* Available word bubbles */}
-<div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
-{(curEx.data.shuffledWords||curEx.data.words).map((w,i)=>{const used=wordOrder.some(wo=>wo.w===w&&wo.i===i);
-return<button key={i} onClick={()=>{if(orderDone||used)return;setWordOrder([...wordOrder,{w,i}]);playSound("tap")}} disabled={used||orderDone}
-className="b" style={{padding:"8px 16px",borderRadius:12,border:"2px solid "+(used?"transparent":"rgba(11,74,62,.2)"),
-background:used?"rgba(0,0,0,.05)":"#fff",color:used?"transparent":"#333",fontSize:15,fontWeight:600,fontFamily:"Georgia,serif"}}>{w}</button>})}
-</div>
-{/* Check button */}
-{wordOrder.length>0&&!orderDone&&<button onClick={()=>{setOrderDone(true);
-const result=wordOrder.map(x=>x.w).join(" ");const correct=norm(result)===norm(curEx.data.answer);
-if(correct){playSound("correct");addXP(3);setScore(s=>s+1)}else playSound("wrong");
-setTimeout(advance,correct?1000:2000)}} className="b"
-style={{marginTop:12,padding:"12px 24px",borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:16,fontWeight:700}}>Check ✓</button>}
-{orderDone&&<div style={{marginTop:12,animation:"fi .3s"}}>
-{norm(wordOrder.map(x=>x.w).join(" "))===norm(curEx.data.answer)?
-<div style={{color:"#2E7D32",fontWeight:700,fontSize:16}}>✓ Perfect!</div>:
-<div><div style={{color:"#C62828",fontWeight:700,fontSize:15}}>✗ Correct: {curEx.data.answer}</div></div>}
-</div>}
-</div></div>}
-
-{/* FREE RECALL — type the full sentence */}
-{curEx.t==="free_recall"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:14}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 18px",textAlign:"center",animation:"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#E65100",fontWeight:700,marginBottom:8}}>🧠 Free Recall</div>
-<div style={{fontSize:13,color:T3,marginBottom:4}}>Type this in Portuguese:</div>
-<div style={{fontSize:W?22:18,fontWeight:700,fontFamily:"Georgia,serif",color:T6,marginBottom:16,lineHeight:1.4}}>"{curEx.data.en}"</div>
-<input type="text" value={typeIn} onChange={e=>setTypeIn(e.target.value)}
-onKeyDown={e=>{if(e.key==="Enter"&&typeIn.trim()&&!typed){setTyped(true);
-const correct=norm(typeIn.trim())===norm(curEx.data.answer);setAns(typeIn.trim());
-if(correct){playSound("correct");addXP(5);setScore(s=>s+1)}else playSound("wrong");
-setTimeout(advance,correct?1000:2500)}}}
-disabled={typed} placeholder="Type in Portuguese..."
-style={{width:"100%",padding:"14px 18px",borderRadius:14,border:"2px solid "+(typed?(norm(typeIn)===norm(curEx.data.answer)?"#4caf50":"#f44336"):"#e0e0e0"),
-fontSize:17,fontFamily:"Georgia,serif",boxSizing:"border-box",textAlign:"center"}}/>
-{!typed&&typeIn.trim()&&<button onClick={()=>{setTyped(true);
-const correct=norm(typeIn.trim())===norm(curEx.data.answer);setAns(typeIn.trim());
-if(correct){playSound("correct");addXP(5);setScore(s=>s+1)}else playSound("wrong");
-setTimeout(advance,correct?1000:2500)}} className="b"
-style={{marginTop:10,padding:"12px 24px",borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:16,fontWeight:700}}>Submit</button>}
-{typed&&<div style={{marginTop:14,animation:"fi .3s"}}>
-{norm(typeIn.trim())===norm(curEx.data.answer)?
-<div style={{color:"#2E7D32",fontWeight:700,fontSize:16}}>✓ Perfect! {curEx.data.answer}</div>:
-<div><div style={{color:"#C62828",fontWeight:600}}>✗ Your answer: {typeIn}</div>
-<div style={{color:"#2E7D32",fontWeight:700,marginTop:6}}>✓ Correct: {curEx.data.answer}</div></div>}
-</div>}
-</div></div>}
-
-{/* MIMICRY */}
-{curEx.t==="mimicry"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:12}}>
-<div className="c" style={{padding:W?"40px 32px":"32px 24px",textAlign:"center"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#EF5350",fontWeight:700}}>🎙️ Say it!</div>
-<div style={{fontSize:W?40:34,fontWeight:700,fontFamily:"Georgia,serif",color:T1,marginTop:12}}>{curEx.word[0]}</div>
-<div style={{fontSize:W?20:17,color:T3,marginTop:8,fontFamily:"Georgia,serif"}}>{curEx.word[1]}</div>
-<button onClick={()=>{speakPT(curEx.word[0],()=>setSpk(true),()=>setSpk(false))}} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:14,padding:"10px 24px",margin:"16px auto 0",fontSize:14}}>🔊 Hear it again</button>
-{micDone&&<div style={{marginTop:16,animation:"fi .3s"}}>
-<div style={{fontSize:14,color:norm(micText)===norm(curEx.word[0])?"#2E7D32":"#C62828"}}>
-{norm(micText)===norm(curEx.word[0])?"✓ Perfect!":"✗ Heard: \""+micText+"\""}</div>
-{norm(micText)!==norm(curEx.word[0])&&<div style={{fontSize:13,color:T3,marginTop:4}}>Try: {curEx.word[0]}</div>}
-</div>}</div>
-{!micDone?<button onClick={startMic} className="b" style={{padding:18,borderRadius:16,
-background:micListening?"linear-gradient(135deg,#EF5350,#E53935)":"linear-gradient(135deg,#C62828,#EF5350)",
-color:"#fff",fontSize:17,fontWeight:700,width:"100%",animation:micListening?"mic 1.5s infinite":"none",
-boxShadow:"0 4px 16px rgba(239,83,80,.3)"}}>
-{micListening?"🎙️ Listening...":"🎙️ Tap & Speak"}</button>
-:<div style={{display:"flex",gap:10}}>
-{norm(micText)!==norm(curEx.word[0])&&<button onClick={()=>{setMicDone(false);setMicText("")}} className="b" style={{flex:1,padding:16,borderRadius:14,background:"rgba(255,255,255,.9)",border:"1px solid rgba(0,0,0,.08)",fontSize:15,fontWeight:600,color:T7}}>Try Again</button>}
-<button onClick={advance} className="b" style={{flex:1,padding:16,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",fontSize:16,fontWeight:700}}>Next →</button></div>}
-</div>}
-
-{/* FLASHCARD */}
-{curEx.t==="flash"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:12}}>
-<div onClick={()=>{if(!fR){setFR(true);playSound("flip")}}} className="c" style={{padding:fR?(W?"36px 28px":"28px 22px"):(W?"56px 28px":"48px 22px"),textAlign:"center",cursor:fR?"default":"pointer",minHeight:220,
-display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:8}}>
-{!fR&&<><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#C9982E",fontWeight:700}}>🃏 Flashcard</div>
-<div style={{fontSize:W?44:38,fontWeight:700,fontFamily:"Georgia,serif",color:T1,marginTop:8}}>{curEx.word[0]}</div>
-<div style={{fontSize:14,color:T5,marginTop:20}}>Tap to reveal</div></>}
-{fR&&<><div style={{fontSize:W?32:28,fontWeight:700,fontFamily:"Georgia,serif",color:T1,animation:"fi .3s"}}>{curEx.word[0]}</div>
-<div style={{fontSize:W?22:20,color:"#0B4A3E",fontWeight:600,marginTop:6,animation:"fi .3s .1s both"}}>{curEx.word[1]}</div>
-<div style={{fontSize:15,color:"#0B4A3E",fontFamily:"monospace",marginTop:8,animation:"fi .3s .2s both"}}>/{curEx.word[2]}/</div>
-<button onClick={e=>{e.stopPropagation();speakPT(curEx.word[0],()=>setSpk(true),()=>setSpk(false))}} className="b"
-style={{marginTop:12,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:10,padding:"8px 20px",fontSize:14,animation:"fi .3s .3s both"}}>🔊</button></>}</div>
-{fR&&<button onClick={advance} className="b" style={{padding:16,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",fontSize:16,fontWeight:700,width:"100%"}}>Next →</button>}
-</div>}
-
-{/* GRAMMAR NOTE */}
-{curEx.t==="grammar"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:12}}>
-<div className="c" style={{padding:W?"36px 28px":"28px 22px",background:"linear-gradient(135deg,rgba(255,248,225,.95),rgba(255,243,224,.95))",border:"1px solid rgba(237,204,74,.3)"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#C9982E",fontWeight:700}}>📝 Grammar Tip</div>
-<div style={{fontSize:W?18:16,color:T6,marginTop:14,lineHeight:1.7,fontFamily:"Georgia,serif"}}>{curEx.text}</div></div>
-<button onClick={advance} className="b" style={{padding:16,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",color:"#fff",fontSize:16,fontWeight:700,width:"100%"}}>Got it →</button>
-</div>}
-
-{/* WORD ORDER */}
-{curEx.t==="word_order"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",gap:12}}>
-<div className="c" style={{padding:W?"32px 28px":"24px 20px",textAlign:"center"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:T4,fontWeight:700}}>🔀 Put in order</div>
-<div style={{fontSize:W?20:17,color:T3,marginTop:8,fontFamily:"Georgia,serif"}}>{curEx.word[1]}</div>
-<div style={{minHeight:50,margin:"16px 0",padding:12,borderRadius:12,background:"rgba(11,74,62,.04)",border:"2px dashed rgba(11,74,62,.15)",display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",alignItems:"center"}}>
-{wordOrder.map((w,i)=><span key={i} style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",padding:"8px 16px",borderRadius:10,fontSize:W?17:15,fontWeight:600,fontFamily:"Georgia,serif"}}>{w.w}</span>)}
-{wordOrder.length===0&&<span style={{color:"#ccc",fontSize:14}}>Tap words below...</span>}
-</div>
-<div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginTop:8}}>
-{curEx.scrambled.map((w,i)=>{const used=wordOrder.some(x=>x.i===i);
-return<button key={i} onClick={()=>tapWord(w,i)} disabled={used} className="b"
-style={{background:used?"rgba(0,0,0,.05)":"rgba(255,255,255,.95)",border:"2px solid "+(used?"transparent":"rgba(11,74,62,.2)"),
-borderRadius:10,padding:"10px 18px",fontSize:W?17:15,fontWeight:600,fontFamily:"Georgia,serif",color:used?"#ccc":"#0B4A3E",
-opacity:used?.4:1}}>{w}</button>})}
-</div>
-{orderDone&&<div style={{marginTop:12,animation:"fi .3s"}}>
-{norm(wordOrder.map(x=>x.w).join(" "))===norm(curEx.word[0])
-?<div style={{color:"#2E7D32",fontWeight:700}}>✓ Correct!</div>
-:<div><div style={{color:"#C62828",fontWeight:700}}>✗ Correct order:</div><div style={{color:"#0B4A3E",fontWeight:600,marginTop:4,fontFamily:"Georgia,serif"}}>{curEx.word[0]}</div></div>}
-</div>}
-</div></div>}
-
-{/* MINI CONVERSATION */}
-{curEx.t==="convo"&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:12}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:T4,fontWeight:700,textAlign:"center"}}>💬 Conversation</div>
-<div style={{display:"flex",flexDirection:"column",gap:10}}>
-{curEx.data.lines.slice(0,convoI+1).map((line,i)=>{
-if(line.speaker==="bia")return<div key={i} style={{display:"flex",gap:10,maxWidth:"85%",animation:"fi .3s"}}>
-<div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0}}>B</div>
-<div className="c" style={{borderRadius:"4px 16px 16px 16px",padding:"12px 16px"}}>
-<div style={{fontSize:15,color:T1,fontFamily:"Georgia,serif"}}>{line.pt}</div>
-<div style={{fontSize:12,color:T3,fontStyle:"italic",marginTop:4}}>{line.en}</div></div></div>;
-if(line.speaker==="user"&&i<=convoI)return<div key={i} style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",animation:"fi .3s"}}>
-{line.opts.map((opt,oi)=>{const revealed=convoAns!==null&&i===convoI;const isCorrect=oi===line.correct;const picked=convoAns===oi;
-let bg="rgba(255,255,255,.95)",bd="rgba(0,0,0,.08)",tc="#1a1a1a";
-if(revealed&&isCorrect){bg="linear-gradient(135deg,#E8F5E9,#C8E6CF)";bd="#4CAF50";tc="#2E7D32"}
-else if(revealed&&picked&&!isCorrect){bg="linear-gradient(135deg,#FFEBEE,#FFCDD2)";bd="#EF5350";tc="#C62828"}
-return<button key={oi} onClick={()=>answerConvo(oi)} disabled={convoAns!==null&&i===convoI||i<convoI} className="b"
-style={{background:bg,border:`2px solid ${bd}`,borderRadius:14,padding:"10px 16px",fontSize:14,fontWeight:500,color:tc,
-maxWidth:"80%",fontFamily:"Georgia,serif",textAlign:"right",opacity:i<convoI?.5:1}}>{i<convoI&&oi===line.correct?opt:i===convoI?opt:null}</button>})}
-</div>;return null})}
-</div></div>}
-
-{/* SENTENCE FILL-IN-BLANK */}
-{curEx?.t==="sentence"&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:14,justifyContent:"center"}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 20px",textAlign:"center",animation:ans!==null?(ans===curEx.data.a?"cor .5s":"wrg .4s"):"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:T4,fontWeight:700,marginBottom:12}}>📝 Complete the sentence</div>
-<div style={{fontSize:W?22:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:8,lineHeight:1.4}}>{curEx.data.s}</div>
-<div style={{fontSize:13,color:T3,marginBottom:16,fontStyle:"italic"}}>{curEx.data.en}</div>
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{(curEx.data.shuffledOpts||[curEx.data.a,...curEx.data.opts]).map((opt,oi)=>{
-const rv=ans!==null;const isOk=opt===curEx.data.a;const isPk=ans===opt;
-const bg=rv?(isOk?"#e8f5e9":isPk?"#ffebee":"#f5f5f5"):"#fff";
-const bd=rv?(isOk?"#4caf50":isPk?"#f44336":"#e0e0e0"):"#e0e0e0";
-return<button key={oi} onClick={()=>{if(ans!==null)return;setAns(opt);
-if(opt===curEx.data.a){playSound("correct");setScore(s=>s+1)}else playSound("wrong");
-setTimeout(advance,1200)}} className="b"
-style={{background:bg,border:`2px solid ${bd}`,borderRadius:14,padding:"12px 18px",fontSize:16,fontWeight:600,fontFamily:"Georgia,serif"}}>{opt}</button>})}
-</div></div></div>}
-
-{/* MINI-STORY WITH COMPREHENSION */}
-{curEx?.t==="story"&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:14,justifyContent:"center",overflowY:"auto"}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 20px",animation:"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#7B1FA2",fontWeight:700,marginBottom:12,textAlign:"center"}}>📖 Mini-Story</div>
-{curEx.data.story.map((line,i)=><div key={i} style={{marginBottom:10}}>
-<div style={{fontSize:W?17:15,fontFamily:"Georgia,serif",lineHeight:1.5,fontWeight:500}}>{line.pt}</div>
-<div style={{fontSize:13,color:T3,fontStyle:"italic"}}>{line.en}</div>
-</div>)}
-<div style={{borderTop:"1px solid #eee",paddingTop:14,marginTop:10}}>
-<div style={{fontSize:13,fontWeight:700,color:T7,marginBottom:10}}>Comprehension:</div>
-{(()=>{const q=curEx.data.questions[0];return<div>
-<div style={{fontSize:15,fontWeight:600,marginBottom:8}}>{q.q}</div>
-<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-{(q.shuffledOpts||[q.a,...q.opts]).map((opt,oi)=>
-<button key={oi} onClick={()=>{if(ans!==null)return;setAns(opt);
-if(opt===q.a){playSound("correct");setScore(s=>s+1)}else playSound("wrong")}} className="b"
-style={{padding:"8px 14px",borderRadius:10,border:"2px solid "+(ans!==null?(opt===q.a?"#4caf50":ans===opt?"#f44336":"#e0e0e0"):"#e0e0e0"),
-background:ans!==null?(opt===q.a?"#e8f5e9":ans===opt?"#ffebee":"#f5f5f5"):"#fff",
-fontSize:14,fontFamily:"Georgia,serif"}}>{opt}</button>)}
-</div></div>})()}
-</div></div>
-{ans!==null&&<button onClick={advance} className="b" style={{padding:16,borderRadius:14,background:"linear-gradient(135deg,#7B1FA2,#9C27B0)",color:"#fff",fontSize:16,fontWeight:700,width:"100%"}}>Continue →</button>}
-</div>}
-
-{/* ERROR CORRECTION */}
-{curEx?.t==="error_correct"&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:14,justifyContent:"center"}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 20px",textAlign:"center",animation:"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:T4,fontWeight:700,marginBottom:12}}>🔍 Is this correct?</div>
-<div style={{fontSize:W?20:17,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:16,lineHeight:1.4,color:T6}}>"{curEx.data.wrong}"</div>
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-<button onClick={()=>{if(ans!==null)return;const correct=curEx.data.isWrong===true;setAns("hasError");
-if(correct){playSound("correct");setScore(s=>s+1)}else playSound("wrong");setTimeout(advance,2000)}} className="b"
-style={{background:ans==="hasError"?(curEx.data.isWrong?"#e8f5e9":"#ffebee"):"#fff",border:`2px solid ${ans==="hasError"?(curEx.data.isWrong?"#4caf50":"#f44336"):"#e0e0e0"}`,borderRadius:14,padding:"12px",fontSize:15,fontFamily:"Georgia,serif"}}>
-❌ This has an error</button>
-<button onClick={()=>{if(ans!==null)return;const correct=!curEx.data.isWrong;setAns("isCorrect");
-if(correct){playSound("correct");setScore(s=>s+1)}else playSound("wrong");setTimeout(advance,2000)}} className="b"
-style={{background:ans==="isCorrect"?(!curEx.data.isWrong?"#e8f5e9":"#ffebee"):"#fff",border:`2px solid ${ans==="isCorrect"?(!curEx.data.isWrong?"#4caf50":"#f44336"):"#e0e0e0"}`,borderRadius:14,padding:"12px",fontSize:15,fontFamily:"Georgia,serif"}}>
-✅ This is correct</button>
-</div>
-{ans!==null&&<div style={{marginTop:14,padding:12,background:"#f8f8f8",borderRadius:10,textAlign:"left"}}>
-{curEx.data.isWrong&&curEx.data.right!==curEx.data.wrong&&<div style={{fontSize:14,fontWeight:700,color:"#4caf50",marginBottom:4}}>✓ {curEx.data.right}</div>}
-<div style={{fontSize:13,color:T7}}>{curEx.data.rule}</div>
-</div>}
-</div></div>}
-
-{/* SER vs ESTAR DRILL */}
-{curEx?.t==="ser_estar"&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:14,justifyContent:"center"}}>
-<div className="c" style={{padding:W?"28px 24px":"22px 18px",textAlign:"center",animation:"pop .3s"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"#1565C0",fontWeight:700,marginBottom:12}}>🎯 Ser or Estar?</div>
-<div style={{fontSize:W?22:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:16,lineHeight:1.4}}>"{curEx.data.sentence}"</div>
-<div style={{display:"flex",gap:10,justifyContent:"center"}}>
-{["ser","estar"].map(v=>{const isCorrect=curEx.data.verb===v;const picked=ans===v;const revealed=ans!==null;
-return<button key={v} onClick={()=>{if(ans!==null)return;setAns(v);
-if(isCorrect){playSound("correct");setScore(s=>s+1)}else playSound("wrong");
-setTimeout(advance,2000)}} className="b"
-style={{flex:1,maxWidth:160,padding:"16px",borderRadius:14,fontSize:18,fontWeight:800,fontFamily:"Georgia,serif",
-background:revealed?(isCorrect?"linear-gradient(135deg,#E8F5E9,#C8E6CF)":picked?"linear-gradient(135deg,#FFEBEE,#FFCDD2)":"rgba(255,255,255,.95)"):"rgba(255,255,255,.95)",
-border:`2px solid ${revealed?(isCorrect?"#4CAF50":picked?"#EF5350":"rgba(0,0,0,.06)"):"rgba(0,0,0,.08)"}`,
-color:revealed?(isCorrect?"#2E7D32":picked?"#C62828":"#999"):"#1a1a1a"}}>{v.toUpperCase()}</button>})}
-</div>
-{ans!==null&&<div style={{marginTop:14,padding:12,background:"rgba(21,101,192,.06)",borderRadius:12,textAlign:"left",animation:"fi .3s"}}>
-<div style={{fontSize:14,fontWeight:700,color:"#1565C0",marginBottom:4}}>✓ {curEx.data.answer} ({curEx.data.verb})</div>
-<div style={{fontSize:13,color:T2}}>{curEx.data.why}</div>
-</div>}
-</div></div>}
-
-{/* QUIZ EXERCISES: pick_en, pick_pt, listen, type_pt, true_false, listen_type */}
-{["pick_en","pick_pt","listen","type_pt","true_false","listen_type"].includes(curEx?.t)&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:14,justifyContent:"center"}}>
-<div style={{borderRadius:24,overflow:"hidden",boxShadow:dark?"0 8px 28px rgba(0,0,0,.3)":"0 8px 28px rgba(0,0,0,.1)",
-animation:ans!==null?(norm(String(ans))===norm(String(curEx.a))||(curEx.t==="true_false"&&ans===curEx.a)?"cor .5s":"wrg .4s"):"pop .3s"}}>
-{/* Gradient type-band header */}
-<div style={{padding:"12px",textAlign:"center",
-background:curEx.t==="pick_en"?"linear-gradient(135deg,#1565C0,#42A5F5)":curEx.t==="pick_pt"?"linear-gradient(135deg,#0B4A3E,#2D8B6E)":
-curEx.t==="listen"||curEx.t==="listen_type"?"linear-gradient(135deg,#C9982E,#FFB300)":curEx.t==="true_false"?"linear-gradient(135deg,#7B1FA2,#AB47BC)":"linear-gradient(135deg,#00897B,#26A69A)"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"rgba(255,255,255,.95)",fontWeight:800}}>
-{curEx.t==="pick_en"?"🔍 What does this mean?":curEx.t==="pick_pt"?"🇧🇷 Say in Portuguese":
-curEx.t==="listen"?"👂 What do you hear?":curEx.t==="type_pt"?"⌨️ Type in Portuguese":
-curEx.t==="true_false"?"⚖️ True or false?":"👂 Type what you hear"}</div></div>
-<div className="c" style={{padding:W?"32px 24px":"26px 20px",textAlign:"center",borderRadius:0,boxShadow:"none"}}>
-{(curEx.t==="listen"||curEx.t==="listen_type")?
-<button onClick={()=>speakPT(curEx.audio,()=>setSpk(true),()=>setSpk(false))} className="b"
-style={{background:"linear-gradient(135deg,#C9982E,#FFB300)",color:"#fff",borderRadius:"50%",width:W?88:76,height:W?88:76,fontSize:32,
-margin:"8px auto",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 28px rgba(201,152,46,.45)",animation:spk?"pulse .6s infinite":"gl 2s infinite"}}>🔊</button>
-:curEx.t==="true_false"?<div><div style={{fontSize:W?32:26,fontWeight:800,fontFamily:"Georgia,serif",color:T1}}>{curEx.q}</div>
-<div style={{fontSize:W?20:18,color:T3,marginTop:8,fontFamily:"Georgia,serif"}}>= {curEx.shown}?</div></div>
-:<div style={{fontSize:W?34:27,fontWeight:800,fontFamily:"Georgia,serif",color:curEx.t==="pick_pt"?"#0B4A3E":T1}}>{curEx.q}</div>}</div></div>
-
-{(curEx.t==="pick_en"||curEx.t==="pick_pt"||curEx.t==="listen")&&
-<div style={{display:"flex",flexDirection:"column",gap:10}}>
-{curEx.opts.map((o,i)=>{const isOk=norm(o)===norm(curEx.a);const isPk=ans!==null&&norm(o)===norm(String(ans));const rv=ans!==null;
-let bg=dark?"rgba(40,40,40,.95)":"rgba(255,255,255,.97)",bd=dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.07)",tc=dark?"#e8e8e8":"#1a1a1a",sh="0 2px 8px rgba(0,0,0,.04)";
-if(rv&&isOk){bg="linear-gradient(135deg,#43A047,#66BB6A)";bd="#43A047";tc="#fff";sh="0 6px 20px rgba(76,175,80,.4)"}
-else if(rv&&isPk&&!isOk){bg="linear-gradient(135deg,#E53935,#EF5350)";bd="#E53935";tc="#fff";sh="0 6px 20px rgba(239,83,80,.4)"}
-else if(rv){bg=dark?"rgba(30,30,30,.6)":"rgba(245,245,245,.7)";tc=dark?"#666":"#aaa"}
-return<button key={i} onClick={()=>answerQ(o)} disabled={rv} className="b" style={{
-background:bg,border:`2px solid ${bd}`,borderRadius:16,padding:W?"17px 22px":"15px 18px",fontSize:W?17:16,fontWeight:600,
-textAlign:"left",fontFamily:"Georgia,serif",color:tc,boxShadow:sh,position:"relative",
-animation:`cardIn .35s ${i*.07}s both`,transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<span>{o}</span>
-{rv&&isOk&&<span style={{fontSize:20}}>✓</span>}
-{rv&&isPk&&!isOk&&<span style={{fontSize:20}}>✗</span>}
-</button>})}</div>}
-
-{curEx.t==="true_false"&&<div style={{display:"flex",gap:12}}>
-{[true,false].map((v,vi)=>{const rv=ans!==null;const isOk=v===curEx.a;const isPk=ans===v;
-let bg=dark?"rgba(40,40,40,.95)":"rgba(255,255,255,.97)",bd=dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.07)",tc=dark?"#e8e8e8":"#1a1a1a",sh="0 2px 8px rgba(0,0,0,.04)";
-if(rv&&isOk){bg="linear-gradient(135deg,#43A047,#66BB6A)";bd="#43A047";tc="#fff";sh="0 6px 20px rgba(76,175,80,.4)"}
-else if(rv&&isPk&&!isOk){bg="linear-gradient(135deg,#E53935,#EF5350)";bd="#E53935";tc="#fff";sh="0 6px 20px rgba(239,83,80,.4)"}
-return<button key={String(v)} onClick={()=>answerQ(v)} disabled={rv} className="b"
-style={{flex:1,background:bg,border:`2px solid ${bd}`,borderRadius:18,padding:"20px",fontSize:18,fontWeight:800,color:tc,boxShadow:sh,
-fontFamily:"Georgia,serif",animation:`cardIn .35s ${vi*.1}s both`,transition:"all .2s"}}>{v?"✓ True":"✗ False"}</button>})}</div>}
-
-{(curEx.t==="type_pt"||curEx.t==="listen_type")&&<div>
-<div style={{display:"flex",gap:8}}>
-<input value={typeIn} onChange={e=>setTypeIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!typed)submitType()}}
-disabled={typed} placeholder={curEx.t==="listen_type"?"Type what you hear...":"Type in Portuguese..."}
-style={{flex:1,padding:"14px 18px",borderRadius:14,border:`2px solid ${typed?(norm(typeIn)===norm(curEx.a)?"#4CAF50":"#EF5350"):"rgba(0,0,0,.08)"}`,
-fontSize:16,fontFamily:"Georgia,serif",background:typed?(norm(typeIn)===norm(curEx.a)?"#E8F5E9":"#FFEBEE"):"rgba(255,255,255,.95)"}}/>
-{!typed&&<button onClick={submitType} disabled={!typeIn.trim()} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",borderRadius:14,padding:"14px 22px",fontSize:16,fontWeight:700}}>→</button>}</div>
-{typed&&norm(typeIn)!==norm(curEx.a)&&<div className="c" style={{marginTop:10,padding:"12px 16px",background:"linear-gradient(135deg,#E8F5E9,#C8E6CF)",fontSize:15,color:"#2E7D32",fontFamily:"Georgia,serif",animation:"fi .3s"}}>Correct: <strong>{curEx.a}</strong></div>}
-</div>}
-
-{/* WRONG ANSWER TIP — shows grammar explanation when you miss a quiz */}
-{ans!==null&&["pick_en","pick_pt","listen","true_false"].includes(curEx.t)&&norm(String(ans))!==norm(String(curEx.a))&&GRAMMAR[selU]?.[0]&&
-<div style={{marginTop:8,padding:"10px 14px",background:"rgba(255,243,224,.9)",borderRadius:12,border:"1px solid rgba(255,183,77,.3)",animation:"fi .3s .2s both",fontSize:13}}>
-<span style={{fontWeight:700,color:"#E65100"}}>💡 Tip: </span>
-<span style={{color:"#5D4037"}}>{GRAMMAR[selU][0]}</span>
-</div>}
-
-</div>}
-</div>}
-
-{/* ═══ RESULT (when flow ends) ═══ */}
-{tab==="learn"&&!inUnit&&flow.length===0&&score>0&&<div style={{padding:W?"32px 0":"20px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:14,minHeight:400,animation:"pop .5s"}}>
-<div style={{fontSize:W?64:48}}>{score/(lastQC||1)>=.8?"🏆":"💪"}</div>
-<div style={{fontSize:W?22:18,fontWeight:700,color:"#2E7D32",fontFamily:"Georgia,serif"}}>
-{isTest?(score>=Math.ceil((lastQC||1)*.8)?`Level ${selL+2} Unlocked!`:"Need 80% — try again!"):"Unit Complete! 🎉"}</div>
-
-{/* SCORE + ACCURACY */}
-<div className="c" style={{width:"100%",maxWidth:320,padding:"18px",textAlign:"center"}}>
-<div style={{fontSize:W?48:36,fontWeight:800,fontFamily:"Georgia,serif",color:"#0B4A3E"}}>{score}/{(lastQC||1)}</div>
-<div style={{fontSize:14,color:T3,marginTop:4}}>{Math.round((score/(lastQC||1))*100)}% accuracy</div>
-<div style={{height:6,borderRadius:3,background:"rgba(0,0,0,.06)",marginTop:10,overflow:"hidden"}}>
-<div style={{height:"100%",borderRadius:3,background:score/(lastQC||1)>=.9?"#4CAF50":score/(lastQC||1)>=.7?"#FF9800":"#EF5350",width:`${Math.round((score/(lastQC||1))*100)}%`}}/></div>
-</div>
-
-{/* WORDS LEARNED (for unit completion, not tests) */}
-{!isTest&&selU!==null&&D[selU]&&<div className="c" style={{width:"100%",maxWidth:320,padding:"14px 18px",textAlign:"left"}}>
-<div style={{fontSize:13,fontWeight:700,color:T6,marginBottom:8}}>📚 Words Learned</div>
-<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-{D[selU].w.map((w,wi)=><button key={wi} onClick={()=>{speakPT(w[0],()=>setSpk(true),()=>setSpk(false))}} className="b"
-style={{padding:"5px 12px",borderRadius:8,background:"rgba(11,74,62,.06)",border:"1px solid rgba(11,74,62,.1)",fontSize:13,fontFamily:"Georgia,serif"}}>
-🔊 {w[0]} <span style={{color:T3,fontSize:11}}>= {w[1]}</span></button>)}
-</div></div>}
-
-{/* WEAK WORDS */}
-{(prog.weakWords||[]).length>0&&<div className="c" style={{width:"100%",maxWidth:320,padding:"14px 18px",textAlign:"left"}}>
-<div style={{fontSize:13,fontWeight:700,color:"#D94535",marginBottom:6}}>🔴 Words to Review ({(prog.weakWords||[]).length})</div>
-<div style={{fontSize:12,color:T3}}>These will appear more often in future exercises</div>
-</div>}
-
-{/* XP */}
-<div style={{fontSize:15,color:"#C9982E",fontWeight:700}}>+{score*2} XP earned</div>
-<button onClick={()=>setScore(0)} className="b" style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",borderRadius:16,padding:"16px 36px",fontSize:17,fontWeight:700,marginTop:4}}>Continue</button>
-</div>}
-
-{/* ═══ PRACTICE TAB ═══ */}
-{tab==="practice"&&!pOn&&<div style={{padding:W?"28px 0":"20px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:18,minHeight:400,animation:"fi .4s"}}>
-<div style={{textAlign:"center",marginBottom:4}}>
-<div style={{fontSize:W?28:24,fontWeight:800,fontFamily:"Georgia,serif",background:"linear-gradient(135deg,#FF9800,#F57C00)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Practice</div>
-<div style={{fontSize:14,color:T3,marginTop:4}}>{learnedW().length} words ready to review</div></div>
-
-{learnedW().length>0&&<div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:380}}>
-{/* Daily Challenge — hero card */}
-<button onClick={startDaily} className="b" style={{position:"relative",overflow:"hidden",borderRadius:22,padding:0,width:"100%",textAlign:"left",
-background:"linear-gradient(135deg,#FFB300,#FF8F00)",boxShadow:"0 8px 28px rgba(255,143,0,.35)",border:"none"}}>
-<div style={{position:"absolute",top:-20,right:-10,fontSize:90,opacity:.18}}>⚡</div>
-<div style={{padding:"20px 22px",position:"relative"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,color:"rgba(255,255,255,.85)",fontWeight:700}}>Recommended Daily</div>
-<div style={{fontSize:W?22:19,fontWeight:800,color:"#fff",marginTop:4,fontFamily:"Georgia,serif"}}>Daily Challenge</div>
-<div style={{fontSize:13,color:"rgba(255,255,255,.9)",marginTop:3}}>3-minute mixed review · keeps your streak alive 🔥</div>
-</div></button>
-
-{/* Two-column secondary actions */}
-<div style={{display:"flex",gap:12}}>
-<button onClick={()=>{startF();playSound("click")}} className="b" style={{flex:1,borderRadius:20,padding:"18px 16px",textAlign:"left",
-background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",boxShadow:"0 6px 20px rgba(11,74,62,.3)",border:"none",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-8,right:-4,fontSize:54,opacity:.16}}>🃏</div>
+{/* ═══ CHAT TAB ═══ */}
+{tab==="chat"&&<div style={{display:"flex",flexDirection:"column",minHeight:"calc(100vh - 140px)"}}>
+{/* Welcome if no messages */}
+{msgs.length===0&&<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"40px 0",animation:"fi .5s"}}>
 <div style={{position:"relative"}}>
-<div style={{fontSize:24,marginBottom:6}}>🃏</div>
-<div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Flashcards</div>
-<div style={{fontSize:11,color:"rgba(255,255,255,.8)",marginTop:2}}>All your words</div>
-</div></button>
-
-{(prog.weakWords||[]).length>0?<button onClick={()=>{
-const rv=generateReview(prog.weakWords,ALL_WORDS);setFlow(rv);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);
-setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);setInUnit(true);playSound("click")
-}} className="b" style={{flex:1,borderRadius:20,padding:"18px 16px",textAlign:"left",
-background:"linear-gradient(135deg,#D94535,#E57373)",boxShadow:"0 6px 20px rgba(217,69,53,.3)",border:"none",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-8,right:-4,fontSize:54,opacity:.16}}>🔄</div>
-<div style={{position:"relative"}}>
-<div style={{fontSize:24,marginBottom:6}}>🔄</div>
-<div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Review</div>
-<div style={{fontSize:11,color:"rgba(255,255,255,.85)",marginTop:2}}>{(prog.weakWords||[]).length} weak words</div>
-</div></button>
-:<button onClick={()=>{const drills=shuffle([...SER_ESTAR_DRILLS]).slice(0,8);const flow=drills.map(d=>({t:"ser_estar",data:d}));
-setFlow(flow);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);setInUnit(true);playSound("click")
-}} className="b" style={{flex:1,borderRadius:20,padding:"18px 16px",textAlign:"left",
-background:"linear-gradient(135deg,#1565C0,#42A5F5)",boxShadow:"0 6px 20px rgba(21,101,192,.3)",border:"none",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-8,right:-4,fontSize:54,opacity:.16}}>🎯</div>
-<div style={{position:"relative"}}>
-<div style={{fontSize:24,marginBottom:6}}>🎯</div>
-<div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Ser/Estar</div>
-<div style={{fontSize:11,color:"rgba(255,255,255,.85)",marginTop:2}}>Grammar drill</div>
-</div></button>}
-</div>
-</div>}
-{learnedW().length===0&&<div className="c" style={{padding:"24px 20px",textAlign:"center",maxWidth:320,marginTop:20}}>
-<div style={{fontSize:40,marginBottom:8}}>🔒</div>
-<div style={{fontSize:15,fontWeight:700,color:T1}}>Practice unlocks soon</div>
-<div style={{fontSize:13,color:T3,marginTop:6}}>Complete your first unit in the Learn tab to start practicing.</div></div>}
-{/* MORE PRACTICE — collapsible */}
-{learnedW().length>0&&<div style={{width:"100%",maxWidth:360,marginTop:12}}>
-<button onClick={()=>setShowMore(!showMore)} className="b" style={{width:"100%",padding:"12px 16px",borderRadius:14,background:dark?"rgba(255,255,255,.05)":"rgba(0,0,0,.03)",border:"1px solid rgba(0,0,0,.06)",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:14,fontWeight:700,color:T2}}>
-<span>{showMore?"▾":"▸"} More Practice</span>
-<span style={{fontSize:12,color:T4,fontWeight:400}}>Search · Flashcards · Drills</span>
-</button></div>}
-
-{showMore&&<>
-{/* Word Search */}
-{learnedW().length>0&&<div style={{width:"100%",maxWidth:360,marginTop:8}}>
-<input type="text" placeholder="🔍 Search any word..." value={prog._search||""} onChange={e=>{
-setProg(p=>({...p,_search:e.target.value}))}} style={{width:"100%",padding:"12px 16px",borderRadius:14,border:dark?"2px solid rgba(255,255,255,.15)":"2px solid #e0e0e0",fontSize:15,fontFamily:"Georgia,serif",boxSizing:"border-box"}}/>
-{(prog._search||"").length>=2&&<div style={{marginTop:8,maxHeight:200,overflowY:"auto"}}>
-{ALL_WORDS.filter(w=>w[0].toLowerCase().includes((prog._search||"").toLowerCase())||w[1].toLowerCase().includes((prog._search||"").toLowerCase())).slice(0,10).map((w,i)=>
-<div key={i} style={{padding:"8px 12px",borderBottom:"1px solid #f0f0f0",display:"flex",justifyContent:"space-between",fontSize:14}}>
-<span style={{fontWeight:600,fontFamily:"Georgia,serif"}}>{w[0]}</span>
-<span style={{color:T3}}>{w[1]}</span>
-</div>)}</div>}
-</div>}
-{/* UNIT-SPECIFIC FLASHCARDS */}
-{learnedW().length>0&&<div style={{width:"100%",maxWidth:360,marginTop:16}}>
-<div style={{fontSize:14,fontWeight:700,color:T6,marginBottom:10}}>🃏 Unit Flashcards</div>
-<div style={{maxHeight:200,overflowY:"auto"}}>
-{D.map((u,i)=>{if(!isDone(i))return null;
-return<button key={i} onClick={()=>{setFD(shuffle([...u.w]));setPI(0);setPS(false);setPSt({y:0,n:0});setPDone(false);setPOn(true);playSound("click")}}
-className="b" style={{width:"100%",padding:"8px 14px",borderRadius:10,marginBottom:4,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",
-background:dark?"#1e1e1e":"#fff",border:"1px solid rgba(11,74,62,.1)",fontSize:13}}>
-<div><span style={{fontWeight:600,color:"#0B4A3E"}}>{u.n}</span>
-<span style={{color:T4,marginLeft:8}}>{u.w.length} words</span></div>
-<span style={{color:"#0B4A3E",fontWeight:700}}>→</span>
-</button>}).filter(Boolean)}
-</div></div>}
-{/* THEMED REVIEW CLUSTERS */}
-{learnedW().length>30&&<div style={{width:"100%",maxWidth:360,marginTop:16}}>
-<div style={{fontSize:14,fontWeight:700,color:T6,marginBottom:10}}>🏆 Themed Challenges</div>
-{THEME_CLUSTERS.map((cl,ci)=>{const done=cl.units.filter(u=>isDone(u)).length;const unlocked=done>=cl.minDone;
-return<button key={ci} onClick={()=>{if(!unlocked)return;
-const words=cl.units.filter(u=>isDone(u)).flatMap(u=>D[u].w);const rv=generateReview(shuffle(words).slice(0,15),ALL_WORDS);
-setFlow(rv);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);
-setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);setInUnit(true);playSound("click")
-}} disabled={!unlocked} className="b" style={{width:"100%",padding:"10px 14px",borderRadius:12,marginBottom:6,textAlign:"left",
-background:unlocked?"#fff":"rgba(0,0,0,.03)",border:"1px solid "+(unlocked?"rgba(11,74,62,.15)":"rgba(0,0,0,.05)"),opacity:unlocked?1:.5,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<div><div style={{fontSize:14,fontWeight:600}}>{cl.name}</div>
-<div style={{fontSize:11,color:T3}}>{cl.desc}</div></div>
-<div style={{fontSize:12,fontWeight:700,color:done>=cl.minDone?"#2E7D32":"#999"}}>{done}/{cl.units.length}</div>
-</button>})}
-</div>}
-
-{/* FALSE FRIENDS */}
-{learnedW().length>0&&<div style={{width:"100%",maxWidth:360,marginTop:16}}>
-<div style={{fontSize:14,fontWeight:700,color:T6,marginBottom:10}}>⚠️ False Friends (Falsos Amigos)</div>
-<div style={{fontSize:12,color:T3,marginBottom:8}}>Words that LOOK English but mean something different!</div>
-<div style={{maxHeight:240,overflowY:"auto"}}>
-{FALSE_FRIENDS.map((ff,fi)=>
-<div key={fi} className="c" style={{padding:"10px 14px",marginBottom:6,animation:`fi .3s ${fi*.03}s both`}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<button onClick={()=>{speakPT(ff.pt,()=>setSpk(true),()=>setSpk(false));playSound("tap")}} className="b" style={{background:"none",padding:0,textAlign:"left"}}>
-<span style={{fontSize:16,fontWeight:700,fontFamily:"Georgia,serif",color:"#C62828"}}>🔊 {ff.pt}</span>
-<span style={{fontSize:12,color:T3,marginLeft:6}}>≠ {ff.looks}</span>
-</button>
-<span style={{fontSize:11,color:"#fff",background:ff.danger>=4?"#C62828":"#FF8F00",padding:"2px 8px",borderRadius:6,fontWeight:700}}>{ff.danger>=4?"⚠️ Danger":"Caution"}</span>
-</div>
-<div style={{fontSize:12,color:T2,marginTop:4}}>Actually means: <strong>{ff.actually}</strong></div>
-<div style={{fontSize:11,color:"#2E7D32",marginTop:2}}>✓ Say: <strong>{ff.correct}</strong></div>
-</div>)}
-</div></div>}
-
-{/* SER vs ESTAR DRILL */}
-{learnedW().length>0&&<div style={{width:"100%",maxWidth:360,marginTop:16}}>
-<button onClick={()=>{
-const drills=shuffle([...SER_ESTAR_DRILLS]).slice(0,8);
-const flow=drills.map(d=>({t:"ser_estar",data:d}));
-setFlow(flow);setFI(0);setScore(0);setAns(null);setTypeIn("");setTyped(false);setIsTest(false);
-setFR(false);setConvoI(0);setConvoAns(null);setWordOrder([]);setOrderDone(false);setMicText("");setMicDone(false);setInUnit(true);playSound("click")
-}} className="b" style={{width:"100%",padding:"14px",borderRadius:14,background:"linear-gradient(135deg,#1565C0,#42A5F5)",color:"#fff",fontSize:16,fontWeight:700,boxShadow:"0 4px 16px rgba(21,101,192,.3)"}}>
-🎯 Ser vs Estar Drill (8 questions)</button>
-</div>}
-</>}
-
-</div>}
-
-{tab==="practice"&&pOn&&!pDone&&<div style={{padding:"18px 0",display:"flex",flexDirection:"column",gap:14,minHeight:400,animation:"fi .3s"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<button onClick={()=>setPOn(false)} className="b" style={{background:"none",fontSize:24,color:"#0B4A3E",padding:0}}>‹</button>
-<div style={{display:"flex",gap:14,fontSize:14}}><span style={{color:"#2E7D32",fontWeight:700}}>✓{pSt.y}</span><span style={{color:"#D94535",fontWeight:700}}>✗{pSt.n}</span></div>
-<button onClick={()=>setPDone(true)} className="b" style={{background:"rgba(255,255,255,.8)",border:"1px solid rgba(0,0,0,.08)",borderRadius:10,padding:"6px 16px",fontSize:13}}>End</button></div>
-<div key={pI} onClick={()=>{if(!pS){setPS(true);playSound("flip")}}} className="c" style={{padding:pS?"28px 22px":"56px 22px",textAlign:"center",cursor:pS?"default":"pointer",flex:1,
-display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:10,animation:"si .3s"}}>
-{!pS&&<><div style={{fontSize:W?48:42,fontWeight:700,fontFamily:"Georgia,serif"}}>{pCard[0]}</div><div style={{fontSize:14,color:T5,marginTop:20}}>Tap to reveal</div></>}
-{pS&&<><div style={{fontSize:W?34:28,fontWeight:700,fontFamily:"Georgia,serif",animation:"fi .3s"}}>{pCard[0]}</div>
-<div style={{fontSize:W?22:20,color:"#0B4A3E",fontWeight:700,marginTop:6,animation:"fi .3s .1s both"}}>{pCard[1]}</div>
-<div style={{fontSize:15,color:"#0B4A3E",fontFamily:"monospace",marginTop:8,animation:"fi .3s .2s both"}}>/{pCard[2]}/</div>
-<button onClick={e=>{e.stopPropagation();speakPT(pCard[0],()=>setSpk(true),()=>setSpk(false))}} className="b"
-style={{marginTop:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:10,padding:"10px 22px",fontSize:14,animation:"fi .3s .3s both"}}>🔊</button></>}</div>
-{pS&&<div style={{display:"flex",gap:10,animation:"fi .3s"}}>
-<button onClick={()=>rateF(false)} className="b" style={{flex:1,padding:16,borderRadius:14,border:"2px solid #EF5350",background:"linear-gradient(135deg,#FFEBEE,#FFCDD2)",fontSize:15,fontWeight:700,color:"#C62828"}}>✗ Learning</button>
-<button onClick={()=>rateF(true)} className="b" style={{flex:1,padding:16,borderRadius:14,border:"2px solid #4CAF50",background:"linear-gradient(135deg,#E8F5E9,#C8E6CF)",fontSize:15,fontWeight:700,color:"#2E7D32"}}>✓ Got it</button></div>}</div>}
-
-{tab==="practice"&&pOn&&pDone&&<div style={{padding:"28px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:18,animation:"pop .5s"}}>
-<div style={{fontSize:56}}>{(pSt.y/(pSt.y+pSt.n||1)*100)>=80?"🏆":"💪"}</div>
-<div style={{fontSize:24,fontWeight:700,fontFamily:"Georgia,serif"}}>Session Done</div>
-<div className="c" style={{padding:"20px 28px",width:"100%",maxWidth:340}}>
-{[["Cards",pSt.y+pSt.n,"#1a1a1a"],["✓ Got it",pSt.y,"#2E7D32"],["✗ Learning",pSt.n,"#C62828"]].map(([l,v,c],i)=>
-<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:i?"1px solid rgba(0,0,0,.06)":"none"}}>
-<span style={{color:T3}}>{l}</span><span style={{fontWeight:700,color:c}}>{v}</span></div>)}</div>
-<div style={{display:"flex",gap:10}}>
-<button onClick={startF} className="b" style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",borderRadius:14,padding:"14px 28px",fontSize:16,fontWeight:700}}>Again</button>
-<button onClick={()=>{setPOn(false);setPDone(false)}} className="b" style={{background:"rgba(255,255,255,.8)",border:"1px solid rgba(0,0,0,.08)",borderRadius:14,padding:"14px 28px",fontSize:16}}>Done</button></div></div>}
-
-{/* ═══ STATS TAB ═══ */}
-{tab==="stats"&&<div style={{padding:"20px 0",display:"flex",flexDirection:"column",gap:16,animation:"fi .4s"}}>
-{/* Sub-tabs */}
-<div style={{display:"flex",gap:8}}>
-{[["overview","📊 Progress"],["vocab","📚 My Words"],["sounds","🗣️ Pronunciation"]].map(([id,lb])=>
-<button key={id} onClick={()=>{setStatsView(id);playSound("tap")}} className="b"
-style={{padding:"8px 18px",borderRadius:10,fontSize:13,fontWeight:statsView===id?700:500,
-background:statsView===id?"linear-gradient(135deg,#0B4A3E,#1B6B56)":"rgba(255,255,255,.8)",
-color:statsView===id?"#fff":"#666",border:statsView===id?"none":"1px solid rgba(0,0,0,.06)"}}>{lb}</button>)}
-</div>
-
-{statsView==="overview"&&<>
-{/* OVERALL PROGRESS — hero */}
-<div style={{borderRadius:24,overflow:"hidden",animation:"pop .3s",boxShadow:"0 8px 32px rgba(11,74,62,.25)"}}>
-<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",padding:"24px 22px",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-30,right:-20,fontSize:140,opacity:.1}}>🌴</div>
-<div style={{position:"relative"}}>
-<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:2,color:"rgba(255,255,255,.8)",fontWeight:700}}>Your Journey</div>
-<div style={{display:"flex",alignItems:"baseline",gap:8,marginTop:4}}>
-<div style={{fontSize:W?52:44,fontWeight:800,fontFamily:"Georgia,serif",color:"#fff",lineHeight:1}}>{pct}%</div>
-<div style={{fontSize:14,color:"rgba(255,255,255,.85)"}}>complete</div></div>
-<div style={{background:"rgba(255,255,255,.2)",borderRadius:8,height:10,overflow:"hidden",margin:"14px 0 8px"}}>
-<div style={{height:"100%",borderRadius:8,background:"linear-gradient(90deg,#FFD54F,#FFB300)",width:`${pct}%`,transition:"width .6s",boxShadow:"0 0 12px rgba(255,213,79,.6)"}}/></div>
-<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"rgba(255,255,255,.85)"}}>
-<span>{(prog.units||[]).length}/{D.length} units</span>
-<span>{doneW}/{D.length*10} words</span></div>
-</div></div></div>
-
-{/* STAT GRID */}
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-{[[`${prog.xp}`,"XP","⭐","#C9982E"],[`${doneW}`,"Words","📚","#0B4A3E"],[`${acc}%`,"Accuracy","🎯","#2E7D32"],
-[`${fmt(prog.time||0)}`,"Time","⏱️","#5E35B1"],[`${prog.streak||0}`,"Streak","🔥","#D94535"],[`${prog.exDone||0}`,"Exercises","📝","#1565C0"]].map(([val,label,icon,c],i)=>
-<div key={i} style={{padding:"14px 10px",textAlign:"center",animation:`fi .3s ${i*.05}s both`,borderRadius:16,
-background:dark?"rgba(30,30,30,.9)":"#fff",border:`1.5px solid ${c}20`,boxShadow:`0 3px 12px ${c}12`}}>
-<div style={{fontSize:18,marginBottom:2}}>{icon}</div>
-<div style={{fontSize:W?20:17,fontWeight:800,color:c,fontFamily:"Georgia,serif",lineHeight:1}}>{val}</div>
-<div style={{fontSize:10,color:T4,marginTop:3,fontWeight:600}}>{label}</div></div>)}</div>
-
-{/* BIA STAGE */}
-<div className="c" style={{padding:"16px 18px",display:"flex",alignItems:"center",gap:14,animation:"fi .3s .1s both"}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0,boxShadow:"0 4px 12px rgba(201,152,46,.3)"}}>🤖</div>
-<div style={{flex:1,textAlign:"left"}}>
-<div style={{fontSize:14,fontWeight:800,color:"#C9982E",fontFamily:"Georgia,serif"}}>Bia's Level: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div>
-<div style={{fontSize:12,color:T3,marginTop:2}}>Bia gets smarter as you complete more units</div>
-{(prog.weakWords||[]).length>0&&<div style={{fontSize:11,color:"#D94535",marginTop:3,fontWeight:600}}>🔴 {(prog.weakWords||[]).length} words need review</div>}
-</div></div>
-
-{/* CEFR LEVEL */}
-{(()=>{const u=(prog.units||[]).length;const cefrLevels=[{max:30,label:"A1",name:"Beginner",color:"#4CAF50"},{max:60,label:"A2",name:"Elementary",color:"#2196F3"},{max:100,label:"B1",name:"Intermediate",color:"#FF9800"},{max:130,label:"B2",name:"Upper Intermediate",color:"#E91E63"},{max:151,label:"C1",name:"Advanced",color:"#9C27B0"}];
-const current=cefrLevels.find(c=>u<c.max)||cefrLevels[4];const prevMax=cefrLevels[cefrLevels.indexOf(current)-1]?.max||0;const progress=Math.round(((u-prevMax)/(current.max-prevMax))*100);
-return<div className="c" style={{padding:"16px 18px",animation:"fi .3s .15s both"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-<div style={{fontSize:14,fontWeight:700,color:T1}}>🌍 CEFR Level</div>
-<div style={{fontSize:22,fontWeight:800,color:current.color,fontFamily:"Georgia,serif"}}>{current.label}</div></div>
-<div style={{fontSize:12,color:T3,marginBottom:8}}>{current.name} — {u} units completed</div>
-<div style={{display:"flex",gap:4}}>
-{cefrLevels.map((c,i)=><div key={i} style={{flex:1,height:10,borderRadius:5,background:u>=c.max?c.color:(c===current?`${c.color}40`:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)"),position:"relative",overflow:"hidden"}}>
-{c===current&&<div style={{height:"100%",borderRadius:5,background:c.color,width:`${progress}%`}}/>}
-</div>)}
-</div>
-<div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T5,marginTop:4}}>
-{cefrLevels.map((c,i)=><span key={i} style={{fontWeight:c===current?800:400,color:c===current?current.color:T5}}>{c.label}</span>)}
-</div></div>})()}
-
-{/* STREAK CALENDAR — Last 30 days */}
-<div className="c" style={{padding:"16px 18px",animation:"fi .3s .2s both"}}>
-<div style={{fontSize:14,fontWeight:700,marginBottom:10,color:T1}}>📅 30-Day Streak</div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3}}>
-{(()=>{const cells=[];for(let i=29;i>=0;i--){const d=new Date(Date.now()-i*864e5);const key=d.toISOString().split('T')[0];const day=(prog.daily||{})[key];
-const activity=(day?.ex||0)+(day?.flash||0);const isToday=i===0;
-const bg=activity>15?"#1B5E20":activity>8?"#4CAF50":activity>3?"#81C784":activity>0?"#C8E6C9":dark?"rgba(255,255,255,.05)":"rgba(0,0,0,.04)";
-cells.push(<div key={i} title={key+': '+activity+' exercises'} style={{aspectRatio:"1",borderRadius:4,background:bg,border:isToday?"2px solid #FFD600":"1px solid rgba(0,0,0,.03)",cursor:"default"}}/>)};return cells})()}
-</div>
-<div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T5,marginTop:6}}>
-<span>30 days ago</span><span>Today</span>
-</div></div>
-
-{/* BACKUP PROGRESS */}
-<div className="c" style={{padding:"14px 18px",animation:"fi .3s .22s both"}}>
-<div style={{fontSize:14,fontWeight:700,marginBottom:8,color:T1}}>💾 Backup Progress</div>
-<div style={{display:"flex",gap:8}}>
-<button onClick={()=>{try{const data=JSON.stringify(prog,null,2);const blob=new Blob([data],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="fala-comigo-backup-"+new Date().toISOString().split("T")[0]+".json";a.click();URL.revokeObjectURL(url)}catch{}}} className="b"
-style={{flex:1,padding:"10px",borderRadius:10,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:13,fontWeight:700}}>📤 Export</button>
-<label className="b" style={{flex:1,padding:"10px",borderRadius:10,background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)",border:"1px solid rgba(0,0,0,.08)",fontSize:13,fontWeight:700,color:T2,textAlign:"center",cursor:"pointer"}}>
-📥 Import
-<input type="file" accept=".json" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);if(p.xp!==undefined&&p.units){if(confirm("Replace current progress with backup? This cannot be undone.")){setProg(p);try{localStorage.setItem(PK,JSON.stringify(p))}catch{};alert("Progress restored!")}}
-}catch{alert("Invalid backup file.")}};r.readAsText(f)}}/>
-</label>
-</div>
-<div style={{fontSize:11,color:T4,marginTop:6}}>Export saves your progress as a file. Import restores from a backup.</div>
-</div>
-
-{/* TROPHY CASE */}
-<div className="c" style={{padding:"16px 18px",animation:"fi .3s .25s both"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-<div style={{fontSize:14,fontWeight:700,color:T1}}>🏆 Achievements</div>
-<div style={{fontSize:13,fontWeight:800,color:"#C9982E",fontFamily:"Georgia,serif"}}>{(prog.badges||[]).length}/{ACHIEVEMENTS.length}</div></div>
-<div style={{background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.05)",borderRadius:5,height:7,overflow:"hidden",marginBottom:12}}>
-<div style={{height:"100%",borderRadius:5,background:"linear-gradient(90deg,#FFD54F,#FFB300)",width:`${Math.round((prog.badges||[]).length/ACHIEVEMENTS.length*100)}%`,transition:"width .6s"}}/></div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
-{ACHIEVEMENTS.map((a,ai)=>{const earned=(prog.badges||[]).includes(a.id);
-return<div key={ai} title={a.name+": "+a.desc} style={{textAlign:"center",padding:"10px 4px",borderRadius:12,
-background:earned?"linear-gradient(135deg,rgba(255,213,79,.18),rgba(255,179,0,.08))":dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",
-border:earned?"1.5px solid rgba(255,179,0,.35)":"1px solid "+(dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"),
-opacity:earned?1:.4,transition:"all .3s",boxShadow:earned?"0 3px 10px rgba(255,179,0,.15)":"none"}}>
-<div style={{fontSize:earned?26:18,filter:earned?"drop-shadow(0 2px 3px rgba(0,0,0,.15))":"grayscale(1)"}}>{earned?a.icon:"🔒"}</div>
-<div style={{fontSize:9,color:earned?"#C9982E":T5,fontWeight:earned?700:600,marginTop:3,lineHeight:1.2}}>{a.name}</div>
-</div>})}
-</div></div>
-
-{/* DAILY TRACKER */}
-<div className="c" style={{padding:"16px 18px"}}>
-<div style={{fontSize:15,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:12}}>📅 This Week</div>
-{(()=>{const days=[];for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*864e5);
-days.push({date:d.toISOString().split('T')[0],label:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()],
-isToday:i===0,...((prog.daily||{})[d.toISOString().split('T')[0]]||{ex:0,ok:0,time:0,flash:0})})}
-const maxEx=Math.max(...days.map(d=>d.ex+d.flash),1);
-return<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{days.map((d,i)=>{const total=d.ex+d.flash;const pctBar=Math.round((total/maxEx)*100);
-return<div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-<div style={{width:36,fontSize:12,fontWeight:d.isToday?700:500,color:d.isToday?"#0B4A3E":"#999"}}>{d.isToday?"Today":d.label}</div>
-<div style={{flex:1,background:"rgba(11,74,62,.06)",borderRadius:6,height:22,overflow:"hidden"}}>
-{total>0&&<div style={{height:"100%",borderRadius:6,width:`${Math.max(pctBar,12)}%`,
-background:d.isToday?"linear-gradient(90deg,#0B4A3E,#2D8B6E)":"linear-gradient(90deg,#1B6B56,#2D8B6E80)",
-display:"flex",alignItems:"center",paddingLeft:8}}>
-<span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{total}</span></div>}</div>
-<div style={{width:38,textAlign:"right",fontSize:11,color:d.time?"#2E7D32":"#ccc",fontWeight:600}}>{d.time?fmt(d.time):"—"}</div>
-</div>})}</div>})()}
-</div></>}
-
-{/* VOCABULARY LIST */}
-{statsView==="vocab"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
-{learnedW().length===0&&<div style={{textAlign:"center",padding:40,color:T4}}>Complete units to see your vocabulary here</div>}
-{D.filter((_,i)=>isDone(i)).map((u,i)=><div key={i} className="c" style={{padding:"14px 18px",animation:`fi .3s ${i*.03}s both`}}>
-<div style={{fontSize:14,fontWeight:700,color:"#0B4A3E",marginBottom:10}}>{u.n}</div>
-<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-{u.w.map(([pt,en],j)=><button key={j} onClick={()=>{speakPT(pt,()=>setSpk(true),()=>setSpk(false));playSound("tap")}} className="b"
-style={{background:"rgba(11,74,62,.06)",border:"1px solid rgba(11,74,62,.1)",borderRadius:8,padding:"6px 12px",fontSize:13}}>
-<span style={{fontWeight:600,color:"#0B4A3E"}}>{pt}</span> <span style={{color:T3}}>{en}</span></button>)}</div>
-</div>)}</div>}
-
-{/* PRONUNCIATION GUIDE */}
-{statsView==="sounds"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
-<div className="c" style={{padding:"18px",animation:"pop .3s"}}>
-<div style={{fontSize:18,fontWeight:700,fontFamily:"Georgia,serif",marginBottom:4}}>Brazilian Portuguese Sounds</div>
-<div style={{fontSize:13,color:T3}}>Tap any example to hear it</div>
-</div>
-{[
-{sound:"ão",desc:"Nasal 'ow' — like 'ow' in 'town' but through your nose",examples:["Não","Pão","Coração","Avião"],tip:"The most Brazilian sound! Press your tongue down, say 'ow' and hum through your nose."},
-{sound:"nh",desc:"Like 'ny' in 'canyon'",examples:["Amanhã","Banho","Sonho","Vinho"],tip:"Similar to Spanish ñ. Put your tongue on the roof of your mouth."},
-{sound:"lh",desc:"Like 'lli' in 'million'",examples:["Trabalho","Filho","Orelha","Vermelho"],tip:"Place your tongue flat against the roof of your mouth and push air to the sides."},
-{sound:"rr / R",desc:"Guttural 'H' sound (in Rio/São Paulo)",examples:["Carro","Rio","Restaurante","Rua"],tip:"In most of Brazil, double-R and word-initial R sound like English 'H'. 'Rio' sounds like 'HEE-oo'."},
-{sound:"ç",desc:"Like 'ss' in 'miss'",examples:["Açaí","Praça","Criança","Ação"],tip:"Always makes an 'S' sound. Never hard like 'K'. The cedilla (ç) only appears before a, o, u."},
-{sound:"x",desc:"Can be 'sh', 's', 'z', or 'ks'",examples:["Abacaxi","Exemplo","Próximo","Táxi"],tip:"Most common is 'sh' sound. Context determines which: abacashi, ezemplo, próssimo, táksi."},
-{sound:"ê vs é",desc:"Closed 'ay' vs open 'eh'",examples:["Você","Café","Bebê","Até"],tip:"ê (closed) = 'ay' like in 'may'. é (open) = 'eh' like in 'bed'. Big difference!"},
-{sound:"ô vs ó",desc:"Closed 'oh' vs open 'aw'",examples:["Avô","Avó","Ônibus","Nós"],tip:"ô (closed) = 'oh' like 'go'. ó (open) = 'aw' like 'law'. Avô (grandpa) vs Avó (grandma)!"},
-{sound:"d + i",desc:"Sounds like 'jee' in many regions",examples:["Dia","Cidade","Diversão","Diferente"],tip:"In Rio and most of Brazil, 'di' sounds like 'jee'. 'Dia' = 'JEE-ah'. Not universal — some regions keep hard 'd'."},
-{sound:"t + i",desc:"Sounds like 'chee' in many regions",examples:["Noite","Gente","Diferente","Sorte"],tip:"'te/ti' often sounds like 'chee'. 'Noite' = 'NOY-chee'. 'Gente' = 'ZHEN-chee'."},
-].map((s,si)=><div key={si} className="c" style={{padding:"14px 18px",animation:`fi .3s ${si*.04}s both`}}>
-<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-<div style={{fontSize:22,fontWeight:800,color:"#0B4A3E",fontFamily:"Georgia,serif",minWidth:40}}>{s.sound}</div>
-<div style={{fontSize:13,color:T2,flex:1}}>{s.desc}</div>
-</div>
-<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
-{s.examples.map((ex,ei)=><button key={ei} onClick={()=>{speakPT(ex,()=>setSpk(true),()=>setSpk(false));playSound("tap")}} className="b"
-style={{background:"rgba(11,74,62,.06)",border:"1px solid rgba(11,74,62,.12)",borderRadius:8,padding:"6px 14px",fontSize:14,fontWeight:600,fontFamily:"Georgia,serif",color:"#0B4A3E"}}>
-🔊 {ex}</button>)}
-</div>
-<div style={{fontSize:12,color:T3,fontStyle:"italic",lineHeight:1.4}}>💡 {s.tip}</div>
-</div>)}
-</div>}
-</div>}
-{tab==="talk"&&!chatMode&&<div style={{padding:"24px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:18,minHeight:400,animation:"fi .4s"}}>
-{/* Animated Bia avatar */}
-<div style={{position:"relative",marginTop:8}}>
-<div style={{position:"absolute",inset:-6,borderRadius:"50%",background:"conic-gradient(from 0deg,#E91E63,#C9982E,#0B4A3E,#7B1FA2,#E91E63)",animation:"rainbow 4s linear infinite",filter:"blur(2px)",opacity:.7}}/>
-<div style={{position:"relative",width:84,height:84,borderRadius:"50%",background:dark?"#1e1e1e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,boxShadow:"0 8px 24px rgba(0,0,0,.15)"}}>🤖</div>
-</div>
+<div style={{position:"absolute",inset:-6,borderRadius:"50%",background:"conic-gradient(from 0deg,#E91E63,#C9982E,#0B4A3E,#7B1FA2,#E91E63)",animation:"rainbow 4s linear infinite",filter:"blur(2px)",opacity:.6}}/>
+<div style={{position:"relative",width:80,height:80,borderRadius:"50%",background:cbg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:40,boxShadow:"0 6px 20px rgba(0,0,0,.12)"}}>🤖</div></div>
 <div style={{textAlign:"center"}}>
-<div style={{fontSize:W?26:22,fontWeight:800,fontFamily:"Georgia,serif",color:T1}}>Bia</div>
-<div style={{fontSize:13,color:T3,marginTop:2}}>Your AI Portuguese tutor · Stage: {(prog.units||[]).length<=5?"Beginner":(prog.units||[]).length<=15?"Elementary":(prog.units||[]).length<=30?"Pre-Intermediate":(prog.units||[]).length<=50?"Intermediate":(prog.units||[]).length<=80?"Upper-Intermediate":(prog.units||[]).length<=120?"Advanced":"Near-Native"}</div></div>
-<div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:380}}>
-<button onClick={()=>{setChatMode("practice");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Vamos praticar o que você aprendeu! 📚",en:"Hi! Let's practice what you've learned!"}])}} className="b"
-style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",background:dark?"rgba(201,152,46,.08)":"linear-gradient(135deg,rgba(255,255,255,.97),rgba(255,243,224,.4))",border:"2px solid rgba(201,152,46,.2)",boxShadow:"0 4px 16px rgba(201,152,46,.12)"}}>
-<div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#C9982E,#D4A027)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,boxShadow:"0 4px 12px rgba(201,152,46,.3)"}}>📚</div>
-<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:T1,fontFamily:"Georgia,serif"}}>Practice Mode</div>
-<div style={{fontSize:12,color:T3,marginTop:2,lineHeight:1.4}}>Bia uses only words from your completed units</div>
-<div style={{fontSize:11,color:"#C9982E",fontWeight:700,marginTop:3}}>📖 {learnedW().length} words active</div></div></div></button>
-
-{/* VOICE CHAT */}
-<button onClick={()=>{setChatMode("voice");setVoiceLang("pt-BR");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Fala comigo em português! 🎙️",en:"Hi! Talk to me in Portuguese! Tap the mic to speak. You can switch to 🇬🇧 EN to ask me questions in English, or just ask me how to say anything!"}])}} className="b"
-style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",position:"relative",background:"linear-gradient(135deg,#C2185B,#E91E63)",boxShadow:"0 8px 24px rgba(233,30,99,.35)",border:"none"}}>
-<div style={{position:"absolute",top:-15,right:-5,fontSize:80,opacity:.18}}>🎙️</div>
-<div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14,position:"relative"}}>
-<div style={{width:48,height:48,borderRadius:14,background:"rgba(255,255,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🎙️</div>
-<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:"#fff",fontFamily:"Georgia,serif"}}>Voice Chat <span style={{fontSize:11,background:"rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:6,marginLeft:4}}>NEW</span></div>
-<div style={{fontSize:12,color:"rgba(255,255,255,.9)",marginTop:2,lineHeight:1.4}}>Speak Portuguese, hear Bia reply — like a real call</div></div></div></button>
-
-<button onClick={()=>{setChatMode("free");setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}} className="b"
-style={{padding:0,textAlign:"left",width:"100%",borderRadius:20,overflow:"hidden",background:dark?"rgba(45,139,110,.08)":"linear-gradient(135deg,rgba(255,255,255,.97),rgba(232,245,233,.4))",border:"2px solid rgba(11,74,62,.15)",boxShadow:"0 4px 16px rgba(11,74,62,.1)"}}>
-<div style={{padding:W?"18px 20px":"16px 18px",display:"flex",alignItems:"center",gap:14}}>
-<div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,boxShadow:"0 4px 12px rgba(11,74,62,.3)"}}>💬</div>
-<div style={{flex:1}}><div style={{fontSize:W?17:15,fontWeight:800,color:T1,fontFamily:"Georgia,serif"}}>Free Chat <span style={{fontSize:10,background:"rgba(11,74,62,.12)",color:"#0B4A3E",padding:"2px 7px",borderRadius:6,marginLeft:2,fontWeight:700}}>ASK ANYTHING</span></div>
-<div style={{fontSize:12,color:T3,marginTop:2,lineHeight:1.4}}>Ask questions, translate words, or speak English. Bia explains grammar and meanings — no limits.</div></div></div></button>
-
-{/* SCENARIO MODES */}
-{learnedW().length>20&&<>
-<div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,marginBottom:2}}>
-<div style={{fontSize:13,fontWeight:800,color:T2,textTransform:"uppercase",letterSpacing:1.5}}>🎬 Role-play Scenarios</div>
-<div style={{flex:1,height:1,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.08)"}}/></div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-{BIA_SCENARIOS.filter(s=>s.reqUnits<=(prog.units||[]).length).map((sc,si)=>{
-const scColors=["#7B1FA2","#00897B","#5E35B1","#00695C","#6A1B9A","#0277BD","#283593","#AD1457"];const col=scColors[si%scColors.length];
-return<button key={sc.id} onClick={()=>{setChatMode("scenario_"+sc.id);setMsgs([{id:nid.current++,role:"a",pt:"Oi! Vamos praticar: "+sc.name+"! Começa falando comigo 😊",en:"Hi! Let's practice: "+sc.name+"! Start talking to me 😊"}])}} className="b"
-style={{padding:"14px 12px",textAlign:"left",borderRadius:16,position:"relative",overflow:"hidden",
-background:dark?"rgba(30,30,30,.9)":"#fff",border:`2px solid ${col}25`,boxShadow:`0 4px 14px ${col}15`}}>
-<div style={{position:"absolute",top:-6,right:-2,fontSize:44,opacity:.1}}>{sc.icon}</div>
-<div style={{position:"relative"}}>
-<div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${col},${col}CC)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,marginBottom:8,boxShadow:`0 3px 10px ${col}40`}}>{sc.icon}</div>
-<div style={{fontSize:13,fontWeight:800,color:T1,fontFamily:"Georgia,serif",lineHeight:1.2}}>{sc.name}</div>
-<div style={{fontSize:10,color:T4,marginTop:3,lineHeight:1.3}}>{sc.desc}</div>
-</div></button>})}
-</div>
-{BIA_SCENARIOS.filter(s=>s.reqUnits>(prog.units||[]).length).length>0&&
-<div style={{fontSize:11,color:T4,textAlign:"center",marginTop:4}}>🔒 {BIA_SCENARIOS.filter(s=>s.reqUnits>(prog.units||[]).length).length} more scenarios unlock as you progress</div>}
-</>}
-{learnedW().length<=20&&<div style={{fontSize:12,color:T4,textAlign:"center",marginTop:6}}>🎬 Role-play scenarios unlock after 20 words</div>}
+<div style={{fontSize:W?26:22,fontWeight:800,fontFamily:"Georgia,serif"}}>Bia</div>
+<div style={{fontSize:14,color:T3,marginTop:4,maxWidth:300,lineHeight:1.5}}>Your AI Portuguese tutor. Type in English or Portuguese — I'll help you learn! You can also ask me anything about the language.</div></div>
+<div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginTop:8}}>
+{["Oi, Bia!","How do I say 'thank you'?","Teach me greetings","What does 'saudade' mean?"].map((q,i)=>
+<button key={i} onClick={()=>{setChatIn(q);setTimeout(()=>sendChat(q),100)}} className="btn"
+style={{padding:"10px 16px",borderRadius:20,background:cbg,border:`1px solid ${bdr}`,fontSize:13,color:T2,fontFamily:"Georgia,serif",
+boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`}}>{q}</button>)}
 </div></div>}
 
-{tab==="talk"&&chatMode&&msgs.length===0&&<div style={{padding:"40px 0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,minHeight:400,animation:"fi .4s"}}>
-<svg width="60" height="43" viewBox="0 0 28 20" style={{borderRadius:6,boxShadow:"0 3px 12px rgba(0,0,0,.2)"}}><rect width="28" height="20" fill="#009739"/><polygon points="14,2 26,10 14,18 2,10" fill="#FEDD00"/><circle cx="14" cy="10" r="4.5" fill="#002776"/></svg>
-<div style={{fontSize:W?24:20,fontWeight:700,fontFamily:"Georgia,serif"}}>Chat with Bia</div>
-<div style={{fontSize:14,color:T3}}>Practice Portuguese or English</div>
-<button onClick={()=>setMsgs([{id:nid.current++,role:"a",pt:"Oi! Eu sou a Bia 😊 Tô aqui pra te ajudar!",en:"Hi! I'm Bia 😊 I'm here to help!"}])}
-className="b" style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:18,padding:"18px 48px",fontSize:18,fontWeight:700,boxShadow:"0 6px 24px rgba(11,74,62,.3)"}}>Start</button></div>}
-
-{tab==="talk"&&chatMode&&msgs.length>0&&<div style={{padding:"16px 0",display:"flex",flexDirection:"column",gap:12}}>
-{/* Mode badge */}
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 4px"}}>
-<div style={{display:"flex",alignItems:"center",gap:8}}>
-<div style={{background:chatMode==="practice"?"linear-gradient(135deg,#C9982E,#D4A027)":chatMode==="voice"?"linear-gradient(135deg,#C2185B,#E91E63)":chatMode?.startsWith("scenario_")?"linear-gradient(135deg,#7B1FA2,#9C27B0)":"linear-gradient(135deg,#0B4A3E,#2D8B6E)",
-color:"#fff",borderRadius:8,padding:"4px 12px",fontSize:12,fontWeight:700}}>{chatMode==="practice"?"📚 Practice":chatMode==="voice"?"🎙️ Voice":chatMode?.startsWith("scenario_")?(BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode)?.icon||"🎬")+" "+(BIA_SCENARIOS.find(s=>"scenario_"+s.id===chatMode)?.name||"Scenario"):"💬 Free"}</div>
-{chatMode==="practice"&&<div style={{fontSize:11,color:T3}}>{learnedW().length} words active</div>}</div>
-<div style={{display:"flex",alignItems:"center",gap:8}}>
-{msgs.filter(m=>m.role==="a").length>1&&<div style={{fontSize:11,color:T3,background:dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)",padding:"3px 10px",borderRadius:8}}>
-💬 {msgs.filter(m=>m.role==="u").length} msgs · {msgs.filter(m=>m.tip).length} tips · {msgs.filter(m=>m.fix).length} corrections
+{/* Messages */}
+{msgs.length>0&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:12,padding:"18px 0"}}>
+{msgs.map(m=><div key={m.id} style={{alignSelf:m.role==="u"?"flex-end":"flex-start",maxWidth:"85%",animation:"fi .3s"}}>
+{m.role==="u"?
+<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",padding:"12px 16px",borderRadius:"20px 20px 4px 20px",fontSize:15,lineHeight:1.5,boxShadow:"0 3px 12px rgba(11,74,62,.25)"}}>{m.text}</div>
+:<div style={{background:cbg,border:`1px solid ${bdr}`,padding:"14px 16px",borderRadius:"20px 20px 20px 4px",boxShadow:`0 3px 12px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,maxWidth:"100%"}}>
+<div style={{fontSize:W?18:16,fontWeight:600,fontFamily:"Georgia,serif",lineHeight:1.5,color:T1}}>{m.pt}</div>
+<div style={{fontSize:14,color:T3,marginTop:4,lineHeight:1.4}}>{m.en}</div>
+{m.tip&&<div style={{marginTop:8,padding:"8px 12px",background:dark?"rgba(201,152,46,.1)":"rgba(255,248,225,.9)",borderRadius:10,border:"1px solid rgba(201,152,46,.2)",fontSize:12,color:dark?"#D4A027":"#8A6D00"}}>💡 {m.tip}</div>}
+{m.fix&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(233,30,99,.08)":"rgba(252,228,236,.9)",borderRadius:10,border:"1px solid rgba(233,30,99,.15)",fontSize:12,color:"#C2185B"}}>✏️ {m.fix}</div>}
+<button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="btn"
+style={{marginTop:8,background:"none",fontSize:13,color:"#0B4A3E",padding:0,fontWeight:600}}>🔊 Hear it</button>
 </div>}
-<button onClick={()=>{setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:12,color:T3,textDecoration:"underline",padding:0}}>Switch mode</button></div></div>
-{/* Question hint for restricted modes */}
-{(chatMode==="practice"||chatMode==="voice")&&msgs.length<=2&&<div style={{margin:"0 4px",padding:"8px 12px",background:dark?"rgba(201,152,46,.1)":"rgba(255,248,225,.9)",borderRadius:10,border:"1px solid rgba(201,152,46,.2)",fontSize:12,color:dark?"#D4A027":"#8A6D00",lineHeight:1.4}}>
-💡 Stuck on a word? Just ask Bia "how do I say ___?" or "what does ___ mean?" — she'll explain in English anytime.</div>}
-{msgs.map(m=>m.role==="a"?<div key={m.id} style={{display:"flex",gap:10,maxWidth:"85%",animation:"fi .3s"}}>
-<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700}}>B</div>
-<div style={{display:"flex",flexDirection:"column",gap:5}}>
-<div className="c" style={{borderRadius:"4px 16px 16px 16px",padding:"12px 16px"}}>
-<div style={{fontSize:15,lineHeight:1.6,color:T1,fontFamily:"Georgia,serif"}}>{m.pt}</div>
-<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid rgba(0,0,0,.06)",fontSize:12,color:T3,fontStyle:"italic"}}>{m.en}</div></div>
-{m.fix&&<div style={{background:"linear-gradient(135deg,#FFF3E0,#FFE0B2)",borderRadius:10,padding:"6px 12px",fontSize:12,color:"#704000"}}>✏️ {m.fix}</div>}
-{m.tip&&<div style={{background:"#FFFBEA",borderRadius:10,padding:"6px 12px",fontSize:12,color:"#5D4500"}}>💡 {m.tip}</div>}
-</div></div>
-:<div key={m.id} style={{alignSelf:"flex-end",maxWidth:"80%",animation:"fi .3s"}}>
-<div style={{background:"linear-gradient(135deg,#C8E6CF,#A5D6B0)",borderRadius:"16px 4px 16px 16px",padding:"12px 16px",fontSize:15,color:T1}}>{m.text}</div></div>)}
-{busy&&<div style={{display:"flex",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12}}>B</div>
-<div className="c" style={{borderRadius:"4px 16px 16px 16px",padding:"14px 18px",display:"flex",gap:6}}><div className="ld"/><div className="ld"/><div className="ld"/></div></div>}
-<div ref={btm}/></div>}
+</div>)}
+{busy&&<div style={{alignSelf:"flex-start",display:"flex",gap:6,padding:16}}>
+<div style={{width:8,height:8,borderRadius:"50%",background:T3,animation:"pulse 1s 0s infinite"}}/>
+<div style={{width:8,height:8,borderRadius:"50%",background:T3,animation:"pulse 1s .15s infinite"}}/>
+<div style={{width:8,height:8,borderRadius:"50%",background:T3,animation:"pulse 1s .3s infinite"}}/>
+</div>}
+{err&&<div style={{padding:"10px 14px",background:"rgba(198,40,40,.06)",border:"1px solid rgba(198,40,40,.15)",borderRadius:12,fontSize:13,color:"#C62828"}}>{err}</div>}
+<div ref={btm}/>
+</div>}
+</div>}
+
+{/* ═══ FLASHCARDS TAB ═══ */}
+{tab==="cards"&&<div style={{padding:"20px 0",animation:"fi .4s"}}>
+{/* Create card */}
+<div style={{background:cbg,border:`1px solid ${bdr}`,borderRadius:24,padding:"20px",boxShadow:`0 4px 20px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,marginBottom:20}}>
+<div style={{fontSize:18,fontWeight:800,fontFamily:"Georgia,serif",marginBottom:14}}>✏️ Create Flashcard</div>
+<div style={{display:"flex",gap:10,flexDirection:W?"row":"column"}}>
+<input value={newPT} onChange={e=>setNewPT(e.target.value)} placeholder="Portuguese" onKeyDown={e=>{if(e.key==="Enter"&&newPT.trim()&&newEN.trim()){saveCards([...cards,{id:Date.now(),pt:newPT.trim(),en:newEN.trim()}]);setNewPT("");setNewEN("")}}}
+style={{flex:1,padding:"12px 16px",borderRadius:14,border:`2px solid ${dark?"rgba(255,255,255,.1)":"#e8e8e8"}`,fontSize:15,background:dark?"rgba(40,40,40,.9)":"#fff",color:T1,outline:"none",boxSizing:"border-box"}}/>
+<input value={newEN} onChange={e=>setNewEN(e.target.value)} placeholder="English" onKeyDown={e=>{if(e.key==="Enter"&&newPT.trim()&&newEN.trim()){saveCards([...cards,{id:Date.now(),pt:newPT.trim(),en:newEN.trim()}]);setNewPT("");setNewEN("")}}}
+style={{flex:1,padding:"12px 16px",borderRadius:14,border:`2px solid ${dark?"rgba(255,255,255,.1)":"#e8e8e8"}`,fontSize:15,background:dark?"rgba(40,40,40,.9)":"#fff",color:T1,outline:"none",boxSizing:"border-box"}}/>
+<button onClick={()=>{if(newPT.trim()&&newEN.trim()){saveCards([...cards,{id:Date.now(),pt:newPT.trim(),en:newEN.trim()}]);setNewPT("");setNewEN("")}}} className="btn"
+style={{padding:"12px 20px",borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:15,fontWeight:700}}>+ Add</button>
 </div></div>
 
-{err&&<div style={{margin:"0 14px 8px",padding:"10px 14px",background:"#FFEBEE",border:"1px solid #EF5350",borderRadius:12,fontSize:13,color:"#C62828",display:"flex",justifyContent:"space-between"}}>
-{err}<button onClick={()=>setErr(null)} className="b" style={{background:"none",fontSize:18,color:"#C62828"}}>×</button></div>}
-
-{tab==="talk"&&chatMode&&msgs.length>0&&<div style={{background:dark?"rgba(18,18,18,.95)":"rgba(255,255,255,.92)",backdropFilter:"blur(16px)",borderTop:dark?"1px solid rgba(255,255,255,.06)":"1px solid rgba(0,0,0,.06)",padding:"12px 16px 14px",flexShrink:0}}>
-<div className="w" style={{display:"flex",gap:8,alignItems:"center"}}>
-{chatMode==="voice"?<>
-{/* VOICE INPUT — robust mic with language toggle */}
-<button onClick={()=>setVoiceLang(voiceLang==="pt-BR"?"en-US":"pt-BR")} className="b" title="Switch speaking language"
-style={{padding:"16px 12px",borderRadius:14,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)",fontSize:13,fontWeight:800,color:voiceLang==="pt-BR"?"#0B4A3E":"#1565C0",minWidth:54}}>
-{voiceLang==="pt-BR"?"PT 🟢":"EN 🔵"}</button>
-<button onClick={()=>{if(busy||voiceListening)return;
-runSpeechRecognition({
-  lang:voiceLang,
-  onStart:()=>{setVoiceListening(true);playSound("click")},
-  onResult:(text)=>{setVoiceListening(false);sendChat(text)},
-  onError:(err)=>{setVoiceListening(false);setErr(micErrorMsg(err));setTimeout(()=>setErr(null),5000)},
-  onEnd:()=>setVoiceListening(false)
-});
-}} disabled={busy} className="b"
-style={{flex:1,padding:"16px",borderRadius:16,
-background:voiceListening?"linear-gradient(135deg,#E53935,#C62828)":busy?"rgba(233,30,99,.12)":"linear-gradient(135deg,#C2185B,#E91E63)",
-color:busy&&!voiceListening?T3:"#fff",fontSize:16,fontWeight:700,
-boxShadow:voiceListening?"0 0 0 4px rgba(233,30,99,.2)":busy?"none":"0 4px 16px rgba(233,30,99,.3)",
-animation:voiceListening?"mic 1.5s infinite":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-{voiceListening?<>🎙️ Listening... <span style={{fontSize:12,opacity:.85}}>(speak now)</span></>:busy?<><div className="ld"/><div className="ld"/><div className="ld"/></>:<>🎙️ Tap to Speak</>}
-</button>
-<button onClick={()=>{if(recRef.current){try{recRef.current.abort()}catch{}}setVoiceListening(false);setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:20,color:T3}}>↻</button>
-</>:<>
-{/* TEXT INPUT */}
-<input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendChat()}}
-placeholder={chatMode==="practice"?"Practice with your learned words...":"Type in Portuguese or English..."} style={{flex:1,padding:"12px 16px",borderRadius:14,border:`1px solid ${dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.08)"}`,fontSize:15,background:dark?"rgba(40,40,40,.9)":"#fff",color:dark?"#e0e0e0":"#1a1a1a"}}/>
-<button onClick={sendChat} disabled={busy||!chatIn.trim()} className="b"
-style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:14,padding:"12px 20px",fontSize:15,fontWeight:700}}>→</button>
-<button onClick={()=>{setChatMode(null);setMsgs([])}} className="b" style={{background:"none",fontSize:20,color:T3}}>↻</button>
-</>}
+{/* Study mode */}
+{studying&&cards.length>0&&<div style={{marginBottom:20,animation:"pop .3s"}}>
+<div style={{background:cbg,border:`1px solid ${bdr}`,borderRadius:28,padding:"40px 24px",textAlign:"center",
+boxShadow:`0 8px 32px ${dark?"rgba(0,0,0,.3)":"rgba(0,0,0,.1)"}`,cursor:"pointer",minHeight:180,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",
+position:"relative",overflow:"hidden"}} onClick={()=>setFlipped(!flipped)}>
+<div style={{position:"absolute",top:-20,right:-10,fontSize:100,opacity:.06}}>{flipped?"🇬🇧":"🇧🇷"}</div>
+<div style={{fontSize:12,textTransform:"uppercase",letterSpacing:2,color:T4,fontWeight:700,marginBottom:12}}>{flipped?"English":"Português"} · {studyIdx+1}/{cards.length}</div>
+<div style={{fontSize:W?36:28,fontWeight:800,fontFamily:"Georgia,serif",animation:"pop .25s"}} key={`${studyIdx}-${flipped}`}>
+{flipped?cards[studyIdx].en:cards[studyIdx].pt}</div>
+{!flipped&&<button onClick={e=>{e.stopPropagation();speakPT(cards[studyIdx].pt,()=>setSpk(true),()=>setSpk(false))}} className="btn"
+style={{marginTop:16,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:48,height:48,fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 14px rgba(11,74,62,.3)"}}>🔊</button>}
+<div style={{fontSize:12,color:T4,marginTop:12}}>Tap card to flip</div>
+</div>
+<div style={{display:"flex",gap:10,marginTop:12}}>
+<button onClick={()=>{const prev=studyIdx===0?cards.length-1:studyIdx-1;setStudyIdx(prev);setFlipped(false)}} className="btn"
+style={{flex:1,padding:14,borderRadius:14,background:cbg,border:`1px solid ${bdr}`,fontSize:15,fontWeight:700,color:T2}}>← Prev</button>
+<button onClick={()=>{const next=(studyIdx+1)%cards.length;setStudyIdx(next);setFlipped(false)}} className="btn"
+style={{flex:1,padding:14,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:15,fontWeight:700}}>Next →</button>
+<button onClick={()=>{setStudying(false);setStudyIdx(0);setFlipped(false)}} className="btn"
+style={{padding:14,borderRadius:14,background:cbg,border:`1px solid ${bdr}`,fontSize:15,color:T4}}>✕</button>
 </div></div>}
 
-{/* TAB BAR */}
-<div style={{display:"flex",borderTop:`1px solid ${dark?"rgba(255,255,255,.06)":"rgba(0,0,0,.04)"}`,background:dark?"rgba(18,18,18,.97)":"rgba(255,255,255,.97)",backdropFilter:"blur(20px)",flexShrink:0,boxShadow:`0 -2px 20px ${dark?"rgba(0,0,0,.3)":"rgba(0,0,0,.05)"}`}}>
-<div className="w" style={{display:"flex"}}>
-{[{id:"learn",ic:"📚",lb:"Learn",c:"#4CAF50"},{id:"practice",ic:"🎯",lb:"Practice",c:"#FF9800"},{id:"stats",ic:"📊",lb:"Stats",c:"#2196F3"},{id:"talk",ic:"💬",lb:"Talk",c:"#E91E63"}].map(t=>
-<button key={t.id} onClick={()=>{
-if(inUnit&&fI>2&&t.id!=="learn"&&!confirm("You're mid-lesson! Leave and lose progress?"))return;
-setTab(t.id);playSound("tap");if(t.id==="learn"){setInUnit(false);setFlow([]);setScore(0)}if(t.id==="practice"){setPOn(false);setPDone(false)}}}
-className="b" style={{flex:1,padding:W?"14px 0 10px":"12px 0 8px",background:tab===t.id?`${t.c}10`:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:2,
-color:tab===t.id?t.c:"#999",fontWeight:tab===t.id?800:400,fontSize:11,borderTop:tab===t.id?`3px solid ${t.c}`:"3px solid transparent",transition:"all .2s"}}>
-<span style={{fontSize:W?24:20,transform:tab===t.id?"scale(1.25)":"scale(1)",transition:"transform .2s",filter:tab===t.id?"drop-shadow(0 2px 4px rgba(0,0,0,.15))":"none"}}>{t.ic}</span><span>{t.lb}</span></button>)}
+{/* Card list */}
+{cards.length>0&&!studying&&<button onClick={()=>{setStudying(true);setStudyIdx(0);setFlipped(false)}} className="btn"
+style={{width:"100%",padding:16,borderRadius:18,background:"linear-gradient(135deg,#C9982E,#FFB300)",color:"#fff",fontSize:17,fontWeight:800,fontFamily:"Georgia,serif",marginBottom:16,boxShadow:"0 6px 24px rgba(201,152,46,.35)"}}>📚 Study {cards.length} Cards</button>}
+
+{cards.length===0&&!studying&&<div style={{textAlign:"center",padding:"40px 0",color:T4}}>
+<div style={{fontSize:48,marginBottom:12}}>📝</div>
+<div style={{fontSize:15,fontWeight:600}}>No flashcards yet</div>
+<div style={{fontSize:13,marginTop:6,maxWidth:260,margin:"6px auto 0",lineHeight:1.5}}>Add Portuguese words you learn from Bia, or create your own cards to study.</div></div>}
+
+{!studying&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{cards.map((c,i)=><div key={c.id} style={{background:cbg,border:`1px solid ${bdr}`,borderRadius:18,padding:"14px 18px",
+display:"flex",justifyContent:"space-between",alignItems:"center",animation:`fi .3s ${i*.03}s both`,
+boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.15)":"rgba(0,0,0,.04)"}`}}>
+<div style={{flex:1}}>
+<span style={{fontWeight:700,fontFamily:"Georgia,serif",fontSize:15,color:T1}}>{c.pt}</span>
+<span style={{color:T4,margin:"0 8px"}}>—</span>
+<span style={{color:T3,fontSize:14}}>{c.en}</span></div>
+<div style={{display:"flex",gap:6}}>
+<button onClick={()=>speakPT(c.pt,()=>setSpk(true),()=>setSpk(false))} className="btn" style={{background:"none",fontSize:16,padding:0,color:"#0B4A3E"}}>🔊</button>
+<button onClick={()=>{if(confirm("Delete this card?"))saveCards(cards.filter(x=>x.id!==c.id))}} className="btn" style={{background:"none",fontSize:14,padding:0,color:T4}}>✕</button>
+</div></div>)}
+</div>}
+</div>}
+
 </div></div>
+
+{/* ═══ CHAT INPUT (fixed bottom when on chat tab) ═══ */}
+{tab==="chat"&&<div style={{background:dark?"rgba(18,18,18,.97)":"rgba(255,255,255,.95)",backdropFilter:"blur(16px)",borderTop:`1px solid ${bdr}`,padding:"12px 16px",flexShrink:0}}>
+<div style={{maxWidth:W?600:480,margin:"0 auto",display:"flex",gap:8,alignItems:"center"}}>
+{/* Voice language toggle */}
+{voiceMode&&<button onClick={()=>setVoiceLang(voiceLang==="pt-BR"?"en-US":"pt-BR")} className="btn"
+style={{padding:"12px 10px",borderRadius:14,background:dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.04)",fontSize:12,fontWeight:800,color:voiceLang==="pt-BR"?"#0B4A3E":"#1565C0",minWidth:48}}>
+{voiceLang==="pt-BR"?"PT":"EN"}</button>}
+
+{/* Voice mic button OR text input */}
+{voiceMode?
+<button onClick={()=>{if(busy||voiceListening)return;
+runSpeech({lang:voiceLang,onStart:()=>setVoiceListening(true),
+onResult:t=>{setVoiceListening(false);sendChat(t)},
+onError:e=>{setVoiceListening(false);setErr(e);setTimeout(()=>setErr(null),5000)},
+onEnd:()=>setVoiceListening(false)})}} disabled={busy} className="btn"
+style={{flex:1,padding:"14px",borderRadius:16,
+background:voiceListening?"linear-gradient(135deg,#E53935,#C62828)":busy?"rgba(233,30,99,.1)":"linear-gradient(135deg,#C2185B,#E91E63)",
+color:voiceListening||!busy?"#fff":T4,fontSize:15,fontWeight:700,
+boxShadow:voiceListening?"0 0 0 4px rgba(233,30,99,.2)":"0 3px 12px rgba(233,30,99,.25)",
+animation:voiceListening?"mic 1.5s infinite":"none"}}>
+{voiceListening?"🎙️ Listening...":busy?"Thinking...":"🎙️ Tap to Speak"}</button>
+:<>
+<input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendChat()}}
+placeholder="Type in Portuguese or English..."
+style={{flex:1,padding:"12px 16px",borderRadius:14,border:`1.5px solid ${dark?"rgba(255,255,255,.1)":"rgba(0,0,0,.08)"}`,
+fontSize:15,background:dark?"rgba(40,40,40,.9)":"#fff",color:T1,outline:"none"}}/>
+<button onClick={()=>sendChat()} disabled={busy||!chatIn.trim()} className="btn"
+style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:14,padding:"12px 18px",fontSize:15,fontWeight:700,
+boxShadow:"0 3px 12px rgba(11,74,62,.25)"}}>→</button></>}
+
+{/* Toggle voice/text */}
+<button onClick={()=>{setVoiceMode(!voiceMode);if(voiceListening){if(recRef.current)try{recRef.current.abort()}catch{};setVoiceListening(false)}}} className="btn"
+style={{background:voiceMode?"linear-gradient(135deg,#0B4A3E,#2D8B6E)":"rgba(0,0,0,.05)",borderRadius:14,padding:"12px",fontSize:16,
+color:voiceMode?"#fff":T3,border:`1px solid ${voiceMode?"transparent":bdr}`}}>
+{voiceMode?"⌨️":"🎙️"}</button>
+</div></div>}
+
+{/* ═══ TAB BAR ═══ */}
+<div style={{display:"flex",borderTop:`1px solid ${bdr}`,background:dark?"rgba(18,18,18,.97)":"rgba(255,255,255,.97)",flexShrink:0}}>
+{[{id:"chat",icon:"💬",label:"Chat"},{id:"cards",icon:"📚",label:"Flashcards"}].map(t=>
+<button key={t.id} onClick={()=>setTab(t.id)} className="btn"
+style={{flex:1,padding:"12px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"transparent",
+color:tab===t.id?"#0B4A3E":T4,fontSize:11,fontWeight:tab===t.id?800:500}}>
+<span style={{fontSize:tab===t.id?22:18,transition:"all .2s"}}>{t.icon}</span>
+<span>{t.label}</span>
+</button>)}
+</div>
 </div>)}
