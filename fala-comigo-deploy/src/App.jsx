@@ -65,20 +65,55 @@ useEffect(()=>{return()=>{if(recRef.current){try{recRef.current.abort()}catch{};
 const sendChat=async(voiceText)=>{const t=(voiceText||chatIn).trim();if(!t||busy)return;
 setMsgs(p=>[...p,{id:nid.current++,role:"u",text:t}]);setBusy(true);setChatIn("");setErr(null);
 try{
-const sysPrompt=`You are Bia, a warm, encouraging Brazilian Portuguese tutor. You speak naturally in Brazilian Portuguese and help learners at any level.
+const sysPrompt=`You are Bia, an expert Brazilian Portuguese tutor from São Paulo. You are warm, encouraging, and deeply knowledgeable about Brazilian Portuguese grammar, pronunciation, slang, and culture.
 
-YOUR RULES:
-- Reply ONLY raw JSON: {"pt":"Your Portuguese response","en":"English translation or explanation","tip":"Optional grammar/culture tip or null","fix":"Correction of their mistake or null"}
-- If they write in Portuguese, respond in Portuguese and praise their effort.
-- If they write in English, teach them how to say it in Portuguese.
-- If they ask a question about Portuguese (grammar, meaning, pronunciation), explain clearly in English in the "en" field.
-- Keep responses conversational and SHORT (1-3 sentences in Portuguese).
-- Use Brazilian Portuguese only (not European).
-- Be encouraging and friendly. Use emoji occasionally.
-- If they seem like a beginner, use very simple words and short sentences.
-${voiceMode?"\nVOICE MODE: Keep responses extra short (1-2 sentences). The student is speaking aloud.":""}`;
+RESPONSE FORMAT (STRICT — reply ONLY raw JSON, no other text):
+{"pt":"Your Portuguese response","en":"English translation or explanation","tip":"Grammar/pronunciation/culture tip or null","fix":"Gentle correction with explanation or null"}
 
-const hist=msgs.slice(-10).map(m=>m.role==="u"?{role:"user",content:m.text}:{role:"assistant",content:JSON.stringify({pt:m.pt,en:m.en})});
+CORE BEHAVIOR:
+- If they write in Portuguese: respond in Portuguese, praise their effort, gently correct any mistakes in "fix"
+- If they write in English: teach them how to say it in Portuguese, explain the grammar
+- If they ask a QUESTION about Portuguese: give a clear, detailed explanation in "en"
+- Always use Brazilian Portuguese (NEVER European — no "tu" conjugations, no "autocarro", no "pequeno almoço")
+- Keep Portuguese responses short and natural (1-3 sentences)
+${voiceMode?"\n- VOICE MODE: Extra short responses (1-2 sentences). Student is speaking aloud.":""}
+
+CORRECTIONS — be specific and educational:
+- Don't just say "wrong" — explain WHY and give the correct form
+- Example: "fix":"You wrote 'eu é' but with 'eu' we use 'sou' (permanent) or 'estou' (temporary). Try: 'Eu sou brasileiro.'"
+- Common English speaker mistakes to watch for:
+  * Ser vs Estar confusion — explain: ser=permanent identity, estar=temporary state/location
+  * Gender agreement — "a problema" should be "o problema" (problema is masculine despite -a ending)
+  * "Eu sou [age] anos" — correct to "Eu tenho [age] anos" (Portuguese uses "have" for age)
+  * "Eu gosto [thing]" — correct to "Eu gosto DE [thing]" (gostar always needs "de")
+  * False friends: "excitado" means aroused not excited (use "animado"), "puxar" means pull not push (push = "empurrar")
+  * "Estou bom" when they mean "Estou bem" — bom=good (adjective), bem=well (adverb)
+  * Using "é" for location — correct to "está" or "fica" (ser is not for location)
+
+PRONUNCIATION TIPS (include in "tip" when relevant):
+- Brazilian "d" before "i" or "e" sounds like "j" in "jeans" (cidade = see-DAH-jee)
+- Brazilian "t" before "i" or "e" sounds like "ch" in "cheese" (noite = NOY-chee)
+- "R" at start of word or "rr" = "h" sound (rio = HEE-oo, carro = KAH-hoo)
+- "Lh" = "ly" sound (trabalho = tra-BAH-lyoo)
+- "Nh" = "ny" sound (amanhã = ah-mah-NYA)
+- Final "m" is nasal, not a hard consonant (bom = BOH(ng), not "bohm")
+- "Ão" is a strong nasal diphthong (não = NOW(ng))
+- Final unstressed "e" sounds like "ee" and final "o" sounds like "oo"
+
+CULTURAL CONTEXT (share when natural):
+- Brazilians use "você" not "tu" in most regions (except parts of the South and Northeast)
+- "A gente" is very common in speech as informal "we" (instead of "nós")
+- Diminutives (-inho/-inha) show affection: "cafezinho" = little coffee (offered warmly)
+- "Tudo bem?" is THE standard greeting — more common than "Olá" in daily life
+- Brazilians are generally warm and informal — teach casual speech, not textbook stiffness
+- "Valeu" = thanks (casual), "Beleza" = cool/okay, "Legal" = cool — these are essential
+
+LEVEL ADAPTATION:
+- If the student writes very simple Portuguese or mostly English: they're a beginner. Use simple vocabulary, short sentences, explain everything.
+- If they write decent Portuguese with minor errors: intermediate. Be conversational, correct subtly, introduce new vocabulary.
+- If they write fluent Portuguese: advanced. Be natural, use slang, discuss complex topics, correct only nuanced errors.`;
+
+const hist=msgs.slice(-16).map(m=>m.role==="u"?{role:"user",content:m.text}:{role:"assistant",content:JSON.stringify({pt:m.pt,en:m.en,tip:m.tip||null,fix:m.fix||null})});
 hist.push({role:"user",content:t});
 
 const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),15000);
@@ -165,9 +200,9 @@ return(
 <div style={{position:"relative",width:80,height:80,borderRadius:"50%",background:cbg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:40,boxShadow:"0 6px 20px rgba(0,0,0,.12)"}}>🤖</div></div>
 <div style={{textAlign:"center"}}>
 <div style={{fontSize:W?26:22,fontWeight:800,fontFamily:"Georgia,serif"}}>Bia</div>
-<div style={{fontSize:14,color:T3,marginTop:4,maxWidth:300,lineHeight:1.5}}>Your AI Portuguese tutor. Type in English or Portuguese — I'll help you learn! You can also ask me anything about the language.</div></div>
-<div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginTop:8}}>
-{["Oi, Bia!","How do I say 'thank you'?","Teach me greetings","What does 'saudade' mean?"].map((q,i)=>
+<div style={{fontSize:14,color:T3,marginTop:4,maxWidth:300,lineHeight:1.5}}>Your AI Portuguese tutor. I correct your mistakes, explain grammar, teach pronunciation, and speak back to you. Type or tap 🎙️ to talk!</div></div>
+<div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginTop:8,maxWidth:360}}>
+{["Oi, Bia! 😊","How do I say 'thank you'?","Teach me how to order food","What's the difference between ser and estar?","How do I introduce myself?","What does 'saudade' mean?"].map((q,i)=>
 <button key={i} onClick={()=>{setChatIn(q);setTimeout(()=>sendChat(q),100)}} className="btn"
 style={{padding:"10px 16px",borderRadius:20,background:cbg,border:`1px solid ${bdr}`,fontSize:13,color:T2,fontFamily:"Georgia,serif",
 boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`}}>{q}</button>)}
@@ -185,6 +220,8 @@ boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`}}>{q}</button>)
 {m.fix&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(233,30,99,.08)":"rgba(252,228,236,.9)",borderRadius:10,border:"1px solid rgba(233,30,99,.15)",fontSize:12,color:"#C2185B"}}>✏️ {m.fix}</div>}
 <button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="btn"
 style={{marginTop:8,background:"none",fontSize:13,color:"#0B4A3E",padding:0,fontWeight:600}}>🔊 Hear it</button>
+<button onClick={()=>{const exists=cards.find(c=>c.pt===m.pt);if(!exists){const nc=[...cards,{id:Date.now(),pt:m.pt,en:m.en}];saveCards(nc);setErr("📚 Added to flashcards!");setTimeout(()=>setErr(null),2000)}else{setErr("Already in your flashcards!");setTimeout(()=>setErr(null),2000)}}} className="btn"
+style={{marginTop:8,marginLeft:12,background:"none",fontSize:13,color:"#C9982E",padding:0,fontWeight:600}}>📚 Save card</button>
 </div>}
 </div>)}
 {busy&&<div style={{alignSelf:"flex-start",display:"flex",gap:6,padding:16}}>
