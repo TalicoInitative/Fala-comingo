@@ -212,17 +212,28 @@ boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`}}>{q}</button>)
 {msgs.length>0&&<div style={{flex:1,display:"flex",flexDirection:"column",gap:12,padding:"18px 0"}}>
 {msgs.map(m=><div key={m.id} style={{alignSelf:m.role==="u"?"flex-end":"flex-start",maxWidth:"85%",animation:"fi .3s"}}>
 {m.role==="u"?
-<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",padding:"12px 16px",borderRadius:"20px 20px 4px 20px",fontSize:15,lineHeight:1.5,boxShadow:"0 3px 12px rgba(11,74,62,.25)"}}>{m.text}</div>
-:<div style={{background:cbg,border:`1px solid ${bdr}`,padding:"14px 16px",borderRadius:"20px 20px 20px 4px",boxShadow:`0 3px 12px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,maxWidth:"100%"}}>
-<div style={{fontSize:W?18:16,fontWeight:600,fontFamily:"Georgia,serif",lineHeight:1.5,color:T1}}>{m.pt}</div>
-<div style={{fontSize:14,color:T3,marginTop:4,lineHeight:1.4}}>{m.en}</div>
-{m.tip&&<div style={{marginTop:8,padding:"8px 12px",background:dark?"rgba(201,152,46,.1)":"rgba(255,248,225,.9)",borderRadius:10,border:"1px solid rgba(201,152,46,.2)",fontSize:12,color:dark?"#D4A027":"#8A6D00"}}>💡 {m.tip}</div>}
-{m.fix&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(233,30,99,.08)":"rgba(252,228,236,.9)",borderRadius:10,border:"1px solid rgba(233,30,99,.15)",fontSize:12,color:"#C2185B"}}>✏️ {m.fix}</div>}
-<button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="btn"
-style={{marginTop:8,background:"none",fontSize:13,color:"#0B4A3E",padding:0,fontWeight:600}}>🔊 Hear it</button>
-<button onClick={()=>{const exists=cards.find(c=>c.pt===m.pt);if(!exists){const nc=[...cards,{id:Date.now(),pt:m.pt,en:m.en}];saveCards(nc);setErr("📚 Added to flashcards!");setTimeout(()=>setErr(null),2000)}else{setErr("Already in your flashcards!");setTimeout(()=>setErr(null),2000)}}} className="btn"
-style={{marginTop:8,marginLeft:12,background:"none",fontSize:13,color:"#C9982E",padding:0,fontWeight:600}}>📚 Save card</button>
+<div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",padding:"14px 18px",borderRadius:"22px 22px 6px 22px",fontSize:15,lineHeight:1.5,boxShadow:"0 4px 16px rgba(11,74,62,.3)",maxWidth:"80%"}}>{m.text}</div>
+:<div style={{background:cbg,border:`1.5px solid ${bdr}`,padding:0,borderRadius:"22px 22px 22px 6px",boxShadow:`0 4px 18px ${dark?"rgba(0,0,0,.25)":"rgba(0,0,0,.08)"}`,maxWidth:"88%",overflow:"hidden"}}>
+{/* Portuguese — big and prominent */}
+<div style={{padding:"16px 18px 10px",borderBottom:`1px solid ${bdr}`}}>
+<div style={{fontSize:W?20:17,fontWeight:700,fontFamily:"Georgia,serif",lineHeight:1.5,color:T1}}>{m.pt}</div></div>
+{/* English translation */}
+<div style={{padding:"10px 18px",background:dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"}}>
+<div style={{fontSize:14,color:T3,lineHeight:1.5}}>{m.en}</div></div>
+{/* Tips and fixes */}
+{(m.tip||m.fix)&&<div style={{padding:"0 18px 12px"}}>
+{m.tip&&<div style={{marginTop:8,padding:"10px 14px",background:dark?"rgba(201,152,46,.1)":"linear-gradient(135deg,rgba(255,248,225,.95),rgba(255,243,200,.9))",borderRadius:12,border:"1px solid rgba(201,152,46,.2)",fontSize:13,color:dark?"#D4A027":"#7A5D00",lineHeight:1.5,display:"flex",gap:8}}>
+<span style={{fontSize:16,flexShrink:0}}>💡</span><span>{m.tip}</span></div>}
+{m.fix&&<div style={{marginTop:6,padding:"10px 14px",background:dark?"rgba(233,30,99,.08)":"linear-gradient(135deg,rgba(252,228,236,.95),rgba(248,215,225,.9))",borderRadius:12,border:"1px solid rgba(233,30,99,.15)",fontSize:13,color:"#AD1457",lineHeight:1.5,display:"flex",gap:8}}>
+<span style={{fontSize:16,flexShrink:0}}>✏️</span><span>{m.fix}</span></div>}
 </div>}
+{/* Action buttons */}
+<div style={{padding:"8px 18px 12px",display:"flex",gap:16}}>
+<button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="btn"
+style={{background:"none",fontSize:13,color:"#0B4A3E",padding:0,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>🔊 <span>Hear it</span></button>
+<button onClick={()=>{const exists=cards.find(c=>c.pt===m.pt);if(!exists){const nc=[...cards,{id:Date.now(),pt:m.pt,en:m.en}];saveCards(nc);setErr("📚 Added to flashcards!");setTimeout(()=>setErr(null),2000)}else{setErr("Already in your flashcards!");setTimeout(()=>setErr(null),2000)}}} className="btn"
+style={{background:"none",fontSize:13,color:"#C9982E",padding:0,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>📚 <span>Save card</span></button>
+</div></div>}
 </div>)}
 {busy&&<div style={{alignSelf:"flex-start",display:"flex",gap:6,padding:16}}>
 <div style={{width:8,height:8,borderRadius:"50%",background:T3,animation:"pulse 1s 0s infinite"}}/>
@@ -250,46 +261,54 @@ style={{padding:"12px 20px",borderRadius:14,background:"linear-gradient(135deg,#
 
 {/* Study mode */}
 {studying&&cards.length>0&&<div style={{marginBottom:20,animation:"pop .3s"}}>
-<div style={{background:cbg,border:`1px solid ${bdr}`,borderRadius:28,padding:"40px 24px",textAlign:"center",
-boxShadow:`0 8px 32px ${dark?"rgba(0,0,0,.3)":"rgba(0,0,0,.1)"}`,cursor:"pointer",minHeight:180,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",
-position:"relative",overflow:"hidden"}} onClick={()=>setFlipped(!flipped)}>
-<div style={{position:"absolute",top:-20,right:-10,fontSize:100,opacity:.06}}>{flipped?"🇬🇧":"🇧🇷"}</div>
-<div style={{fontSize:12,textTransform:"uppercase",letterSpacing:2,color:T4,fontWeight:700,marginBottom:12}}>{flipped?"English":"Português"} · {studyIdx+1}/{cards.length}</div>
-<div style={{fontSize:W?36:28,fontWeight:800,fontFamily:"Georgia,serif",animation:"pop .25s"}} key={`${studyIdx}-${flipped}`}>
+<div onClick={()=>setFlipped(!flipped)} style={{background:cbg,border:`1.5px solid ${bdr}`,borderRadius:28,textAlign:"center",
+boxShadow:`0 12px 40px ${dark?"rgba(0,0,0,.35)":"rgba(0,0,0,.12)"}`,cursor:"pointer",overflow:"hidden",
+position:"relative"}}>
+{/* Gradient top band */}
+<div style={{background:flipped?"linear-gradient(135deg,#1565C0,#42A5F5)":"linear-gradient(135deg,#0B4A3E,#2D8B6E)",padding:"14px",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-10,right:-5,fontSize:60,opacity:.15}}>{flipped?"🇬🇧":"🇧🇷"}</div>
+<div style={{fontSize:11,textTransform:"uppercase",letterSpacing:3,color:"rgba(255,255,255,.95)",fontWeight:800,position:"relative"}}>
+{flipped?"English":"Português"} · Card {studyIdx+1} of {cards.length}</div></div>
+<div style={{padding:"48px 28px",minHeight:120,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center"}}>
+<div style={{fontSize:W?38:30,fontWeight:800,fontFamily:"Georgia,serif",animation:"pop .25s",lineHeight:1.3}} key={`${studyIdx}-${flipped}`}>
 {flipped?cards[studyIdx].en:cards[studyIdx].pt}</div>
 {!flipped&&<button onClick={e=>{e.stopPropagation();speakPT(cards[studyIdx].pt,()=>setSpk(true),()=>setSpk(false))}} className="btn"
-style={{marginTop:16,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:48,height:48,fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 14px rgba(11,74,62,.3)"}}>🔊</button>}
-<div style={{fontSize:12,color:T4,marginTop:12}}>Tap card to flip</div>
-</div>
-<div style={{display:"flex",gap:10,marginTop:12}}>
+style={{marginTop:20,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",borderRadius:"50%",width:56,height:56,fontSize:24,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 20px rgba(11,74,62,.35)",animation:"pulse 2.5s infinite"}}>🔊</button>}
+<div style={{fontSize:12,color:T4,marginTop:16,fontWeight:600}}>Tap to {flipped?"see Portuguese":"reveal English"}</div>
+</div></div>
+<div style={{display:"flex",gap:10,marginTop:14}}>
 <button onClick={()=>{const prev=studyIdx===0?cards.length-1:studyIdx-1;setStudyIdx(prev);setFlipped(false)}} className="btn"
-style={{flex:1,padding:14,borderRadius:14,background:cbg,border:`1px solid ${bdr}`,fontSize:15,fontWeight:700,color:T2}}>← Prev</button>
+style={{flex:1,padding:15,borderRadius:16,background:cbg,border:`1.5px solid ${bdr}`,fontSize:15,fontWeight:700,color:T2,boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.15)":"rgba(0,0,0,.04)"}`}}>← Prev</button>
 <button onClick={()=>{const next=(studyIdx+1)%cards.length;setStudyIdx(next);setFlipped(false)}} className="btn"
-style={{flex:1,padding:14,borderRadius:14,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:15,fontWeight:700}}>Next →</button>
+style={{flex:1,padding:15,borderRadius:16,background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",fontSize:15,fontWeight:700,boxShadow:"0 4px 16px rgba(11,74,62,.3)"}}>Next →</button>
 <button onClick={()=>{setStudying(false);setStudyIdx(0);setFlipped(false)}} className="btn"
-style={{padding:14,borderRadius:14,background:cbg,border:`1px solid ${bdr}`,fontSize:15,color:T4}}>✕</button>
+style={{padding:15,borderRadius:16,background:cbg,border:`1.5px solid ${bdr}`,fontSize:15,color:T4}}>✕</button>
 </div></div>}
 
 {/* Card list */}
 {cards.length>0&&!studying&&<button onClick={()=>{setStudying(true);setStudyIdx(0);setFlipped(false)}} className="btn"
-style={{width:"100%",padding:16,borderRadius:18,background:"linear-gradient(135deg,#C9982E,#FFB300)",color:"#fff",fontSize:17,fontWeight:800,fontFamily:"Georgia,serif",marginBottom:16,boxShadow:"0 6px 24px rgba(201,152,46,.35)"}}>📚 Study {cards.length} Cards</button>}
+style={{width:"100%",padding:18,borderRadius:20,background:"linear-gradient(135deg,#C9982E,#FFB300)",color:"#fff",fontSize:18,fontWeight:800,fontFamily:"Georgia,serif",marginBottom:18,
+boxShadow:"0 8px 28px rgba(201,152,46,.4)",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-15,right:-5,fontSize:70,opacity:.18}}>📚</div>
+<span style={{position:"relative"}}>Study {cards.length} Card{cards.length!==1?"s":""} →</span></button>}
 
-{cards.length===0&&!studying&&<div style={{textAlign:"center",padding:"40px 0",color:T4}}>
-<div style={{fontSize:48,marginBottom:12}}>📝</div>
-<div style={{fontSize:15,fontWeight:600}}>No flashcards yet</div>
-<div style={{fontSize:13,marginTop:6,maxWidth:260,margin:"6px auto 0",lineHeight:1.5}}>Add Portuguese words you learn from Bia, or create your own cards to study.</div></div>}
+{cards.length===0&&!studying&&<div style={{textAlign:"center",padding:"50px 20px",animation:"fi .5s"}}>
+<div style={{fontSize:56,marginBottom:16,animation:"pulse 3s infinite"}}>📝</div>
+<div style={{fontSize:18,fontWeight:700,fontFamily:"Georgia,serif",color:T1}}>No flashcards yet</div>
+<div style={{fontSize:14,color:T3,marginTop:8,maxWidth:280,margin:"8px auto 0",lineHeight:1.6}}>Words you learn from Bia can be saved here with one tap. Or create your own cards above!</div></div>}
 
-{!studying&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{cards.map((c,i)=><div key={c.id} style={{background:cbg,border:`1px solid ${bdr}`,borderRadius:18,padding:"14px 18px",
+{!studying&&cards.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+<div style={{fontSize:13,fontWeight:700,color:T4,textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Your cards ({cards.length})</div>
+{cards.map((c,i)=><div key={c.id} style={{background:cbg,border:`1.5px solid ${bdr}`,borderRadius:18,padding:"14px 18px",
 display:"flex",justifyContent:"space-between",alignItems:"center",animation:`fi .3s ${i*.03}s both`,
-boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.15)":"rgba(0,0,0,.04)"}`}}>
+boxShadow:`0 2px 10px ${dark?"rgba(0,0,0,.15)":"rgba(0,0,0,.04)"}`,transition:"all .2s"}}>
 <div style={{flex:1}}>
-<span style={{fontWeight:700,fontFamily:"Georgia,serif",fontSize:15,color:T1}}>{c.pt}</span>
-<span style={{color:T4,margin:"0 8px"}}>—</span>
+<span style={{fontWeight:700,fontFamily:"Georgia,serif",fontSize:16,color:T1}}>{c.pt}</span>
+<span style={{color:T4,margin:"0 10px",fontSize:14}}>→</span>
 <span style={{color:T3,fontSize:14}}>{c.en}</span></div>
-<div style={{display:"flex",gap:6}}>
-<button onClick={()=>speakPT(c.pt,()=>setSpk(true),()=>setSpk(false))} className="btn" style={{background:"none",fontSize:16,padding:0,color:"#0B4A3E"}}>🔊</button>
-<button onClick={()=>{if(confirm("Delete this card?"))saveCards(cards.filter(x=>x.id!==c.id))}} className="btn" style={{background:"none",fontSize:14,padding:0,color:T4}}>✕</button>
+<div style={{display:"flex",gap:8}}>
+<button onClick={()=>speakPT(c.pt,()=>setSpk(true),()=>setSpk(false))} className="btn" style={{background:"none",fontSize:18,padding:0,color:"#0B4A3E"}}>🔊</button>
+<button onClick={()=>{if(confirm("Delete this card?"))saveCards(cards.filter(x=>x.id!==c.id))}} className="btn" style={{background:"none",fontSize:15,padding:0,color:T4}}>✕</button>
 </div></div>)}
 </div>}
 </div>}
@@ -334,12 +353,13 @@ color:voiceMode?"#fff":T3,border:`1px solid ${voiceMode?"transparent":bdr}`}}>
 </div></div>}
 
 {/* ═══ TAB BAR ═══ */}
-<div style={{display:"flex",borderTop:`1px solid ${bdr}`,background:dark?"rgba(18,18,18,.97)":"rgba(255,255,255,.97)",flexShrink:0}}>
-{[{id:"chat",icon:"💬",label:"Chat"},{id:"cards",icon:"📚",label:"Flashcards"}].map(t=>
+<div style={{display:"flex",borderTop:`1px solid ${bdr}`,background:dark?"rgba(18,18,18,.97)":"rgba(255,255,255,.97)",flexShrink:0,boxShadow:`0 -4px 20px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.05)"}`}}>
+{[{id:"chat",icon:"💬",label:"Chat with Bia",c:"#0B4A3E"},{id:"cards",icon:"📚",label:"Flashcards",c:"#C9982E"}].map(t=>
 <button key={t.id} onClick={()=>setTab(t.id)} className="btn"
-style={{flex:1,padding:"12px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"transparent",
-color:tab===t.id?"#0B4A3E":T4,fontSize:11,fontWeight:tab===t.id?800:500}}>
-<span style={{fontSize:tab===t.id?22:18,transition:"all .2s"}}>{t.icon}</span>
+style={{flex:1,padding:"10px 0 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"transparent",
+color:tab===t.id?t.c:T4,fontSize:11,fontWeight:tab===t.id?800:500,position:"relative"}}>
+{tab===t.id&&<div style={{position:"absolute",top:0,left:"20%",right:"20%",height:3,borderRadius:"0 0 3px 3px",background:`linear-gradient(90deg,${t.c},${t.c}88)`}}/>}
+<span style={{fontSize:tab===t.id?24:20,transition:"all .2s",transform:tab===t.id?"scale(1.15)":"scale(1)"}}>{t.icon}</span>
 <span>{t.label}</span>
 </button>)}
 </div>
