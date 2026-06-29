@@ -255,7 +255,7 @@ boxShadow:`0 2px 8px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.05)"}`,animation:`fi .
 <div style={{background:"linear-gradient(135deg,#0B4A3E,#2D8B6E)",color:"#fff",padding:"14px 18px",borderRadius:"22px 22px 6px 22px",fontSize:15,lineHeight:1.5,boxShadow:"0 4px 16px rgba(11,74,62,.3)"}}>{m.text}</div>
 :<div style={{background:cbg,border:`1.5px solid ${bdr}`,borderRadius:"22px 22px 22px 6px",boxShadow:`0 4px 18px ${dark?"rgba(0,0,0,.25)":"rgba(0,0,0,.08)"}`,overflow:"hidden"}}>
 <div style={{padding:"16px 18px 10px",borderBottom:`1px solid ${bdr}`}}>
-<div style={{fontSize:W?20:17,fontWeight:700,fontFamily:"Georgia,serif",lineHeight:1.5}}>{m.pt}</div></div>
+<div style={{fontSize:W?16:15,fontWeight:600,fontFamily:"Georgia,serif",lineHeight:1.5}}>{m.pt}</div></div>
 <div style={{padding:"10px 18px",background:dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"}}>
 <div style={{fontSize:14,color:T3,lineHeight:1.5}}>{m.en}</div></div>
 {(m.tip||m.fix)&&<div style={{padding:"0 18px 10px"}}>
