@@ -99,13 +99,13 @@ const goHome=()=>{setView("home");setScenario(null);setMsgs([])};
 
 // Colors
 const T1=dark?"#e0e0e0":"#1a1a1a",T2=dark?"#bbb":"#555",T3=dark?"#888":"#888",T4=dark?"#666":"#999";
-const cbg=dark?"rgba(30,30,30,.92)":"rgba(245,250,240,.92)";const bdr=dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)";
-const glass=dark?"rgba(30,30,30,.85)":"rgba(245,250,240,.85)";
+const cbg=dark?"rgba(20,30,20,.92)":"rgba(240,248,240,.94)";const bdr=dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)";
+const glass=dark?"rgba(20,30,20,.88)":"rgba(232,245,233,.88)";
 const lvC={beginner:"#4CAF50",intermediate:"#FF9800",advanced:"#E91E63"};
 
 // ═══ LOGIN ═══
 if(!authUser)return(
-<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"linear-gradient(160deg,#FFF8E1 0%,#E8F5E9 40%,#E3F2FD 70%,#F3E5F5 100%)",fontFamily:"system-ui,sans-serif"}}>
+<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"linear-gradient(160deg,#E8F5E9 0%,#C8E6C9 40%,#A5D6A7 70%,#E8F5E9 100%)",fontFamily:"system-ui,sans-serif"}}>
 <style>{`@keyframes pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(11,74,62,.2)}50%{box-shadow:0 0 40px rgba(11,74,62,.4)}}.li:focus{border-color:#0B4A3E!important;box-shadow:0 0 0 3px rgba(11,74,62,.12)!important}`}</style>
 <div style={{maxWidth:400,width:"100%",animation:"pop .6s"}}>
 <div style={{textAlign:"center",marginBottom:32}}>
@@ -120,7 +120,7 @@ if(!authUser)return(
 
 // ═══ APP ═══
 return(
-<div style={{display:"flex",flexDirection:"column",height:"100vh",background:dark?"#0a0a0a":"linear-gradient(160deg,#FFF8E1 0%,#E8F5E9 40%,#E3F2FD 70%,#F3E5F5 100%)",overflow:"hidden",fontFamily:"system-ui,sans-serif",color:T1}}>
+<div style={{display:"flex",flexDirection:"column",height:"100vh",background:dark?"#0a0f0a":"linear-gradient(160deg,#E8F5E9 0%,#C8E6C9 30%,#A5D6A7 60%,#E8F5E9 100%)",overflow:"hidden",fontFamily:"system-ui,sans-serif",color:T1}}>
 <style>{`
 @keyframes pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
 @keyframes fi{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
@@ -179,10 +179,10 @@ border:`2px solid ${dark?"rgba(11,74,62,.3)":"rgba(11,74,62,.12)"}`,boxShadow:`0
 <div style={{fontSize:11,color:T3,marginTop:4}}>Type in PT or EN</div></button>
 
 <button onClick={()=>{setView("voice");if(!msgs.length)setMsgs([])}} className="b" style={{flex:1,padding:"24px 16px",borderRadius:24,textAlign:"center",
-background:dark?"rgba(233,30,99,.1)":"linear-gradient(135deg,rgba(252,228,236,.9),rgba(248,200,220,.7))",backdropFilter:"blur(16px)",
-border:`2px solid ${dark?"rgba(233,30,99,.25)":"rgba(233,30,99,.12)"}`,boxShadow:`0 8px 28px ${dark?"rgba(233,30,99,.1)":"rgba(233,30,99,.06)"}`}}>
+background:dark?"rgba(0,77,64,.15)":"linear-gradient(135deg,rgba(200,230,201,.9),rgba(165,214,167,.7))",backdropFilter:"blur(16px)",
+border:`2px solid ${dark?"rgba(0,77,64,.3)":"rgba(0,77,64,.12)"}`,boxShadow:`0 8px 28px ${dark?"rgba(0,77,64,.1)":"rgba(0,77,64,.06)"}`}}>
 <div style={{fontSize:36,marginBottom:8}}>🎙️</div>
-<div style={{fontSize:16,fontWeight:800,fontFamily:"Georgia,serif",color:dark?"#F48FB1":"#C2185B"}}>Voice Chat</div>
+<div style={{fontSize:16,fontWeight:800,fontFamily:"Georgia,serif",color:dark?"#80CBC4":"#00695C"}}>Voice Chat</div>
 <div style={{fontSize:11,color:T3,marginTop:4}}>Speak & listen</div></button>
 </div>
 
@@ -235,12 +235,11 @@ style={{padding:"16px 14px",borderRadius:20,textAlign:"left",background:glass,ba
 <div style={{flex:1,display:"flex",flexDirection:"column",gap:10,paddingBottom:16}}>
 {msgs.map(m=><div key={m.id} style={{alignSelf:m.role==="u"?"flex-end":"flex-start",maxWidth:m.role==="u"?"78%":"86%",animation:"fi .25s"}}>
 {m.role==="u"?<div style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",padding:"12px 16px",borderRadius:"20px 20px 4px 20px",fontSize:15,lineHeight:1.5,boxShadow:"0 4px 16px rgba(11,74,62,.25)"}}>{m.text}</div>
-:<div style={{background:glass,backdropFilter:"blur(16px)",border:`1px solid ${bdr}`,borderRadius:"20px 20px 20px 4px",boxShadow:`0 4px 20px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,overflow:"hidden"}}>
-<div style={{padding:"14px 16px 8px"}}><div style={{fontSize:14,fontWeight:500,fontFamily:"Georgia,serif",lineHeight:1.6}}>{m.pt}</div></div>
-<div style={{padding:"8px 16px 10px",background:dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)"}}><div style={{fontSize:13,color:T3,lineHeight:1.5}}>{m.en}</div></div>
-{(m.tip||m.fix)&&<div style={{padding:"0 16px 10px"}}>
-{m.tip&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(201,152,46,.08)":"rgba(255,248,225,.95)",borderRadius:10,border:"1px solid rgba(201,152,46,.15)",fontSize:12,color:dark?"#D4A027":"#7A5D00",lineHeight:1.5,display:"flex",gap:6}}><span>💡</span><span>{m.tip}</span></div>}
-{m.fix&&<div style={{marginTop:5,padding:"8px 12px",background:dark?"rgba(233,30,99,.06)":"rgba(252,228,236,.95)",borderRadius:10,border:"1px solid rgba(233,30,99,.12)",fontSize:12,color:"#AD1457",lineHeight:1.5,display:"flex",gap:6}}><span>✏️</span><span>{m.fix}</span></div>}</div>}
+:<div style={{background:glass,backdropFilter:"blur(16px)",border:`1px solid ${bdr}`,borderRadius:"20px 20px 20px 4px",boxShadow:`0 3px 14px ${dark?"rgba(0,0,0,.15)":"rgba(0,0,0,.04)"}`,overflow:"hidden"}}>
+<div style={{padding:"12px 14px 6px"}}><div style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.6,color:T1}}>{m.pt}</div></div>
+<div style={{padding:"4px 14px 8px"}}><div style={{fontSize:12,color:T3,lineHeight:1.4}}>{m.en}</div></div>
+{m.tip&&<div style={{margin:"0 10px 6px",padding:"7px 10px",background:dark?"rgba(76,175,80,.08)":"rgba(200,230,201,.6)",borderRadius:10,border:`1px solid ${dark?"rgba(76,175,80,.15)":"rgba(76,175,80,.2)"}`,fontSize:11,color:dark?"#81C784":"#2E7D32",lineHeight:1.5,display:"flex",gap:5}}><span>💡</span><span>{m.tip}</span></div>}
+{m.fix&&<div style={{margin:"0 10px 6px",padding:"7px 10px",background:dark?"rgba(56,142,60,.08)":"rgba(185,225,186,.5)",borderRadius:10,border:`1px solid ${dark?"rgba(56,142,60,.15)":"rgba(56,142,60,.2)"}`,fontSize:11,color:dark?"#A5D6A7":"#1B5E20",lineHeight:1.5,display:"flex",gap:5}}><span>✏️</span><span>{m.fix}</span></div>}
 <div style={{padding:"6px 16px 10px"}}><button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="b" style={{background:"none",fontSize:12,color:"#0B4A3E",padding:0,fontWeight:700}}>🔊 Hear it</button></div>
 </div>}</div>)}
 {busy&&<div style={{display:"flex",gap:6,padding:12,alignSelf:"flex-start"}}>{[0,.15,.3].map(d=><div key={d} style={{width:7,height:7,borderRadius:"50%",background:T4,animation:`pulse 1s ${d}s infinite`}}/>)}</div>}
@@ -274,13 +273,12 @@ boxShadow:voiceListening?"0 0 0 6px rgba(233,30,99,.2),0 8px 32px rgba(233,30,99
 <div style={{flex:1,display:"flex",flexDirection:"column",gap:10,paddingBottom:16}}>
 {msgs.map(m=><div key={m.id} style={{alignSelf:m.role==="u"?"flex-end":"flex-start",maxWidth:m.role==="u"?"78%":"86%",animation:"fi .25s"}}>
 {m.role==="u"?<div style={{background:"linear-gradient(135deg,#C2185B,#E91E63)",color:"#fff",padding:"12px 16px",borderRadius:"20px 20px 4px 20px",fontSize:15,lineHeight:1.5,boxShadow:"0 4px 16px rgba(233,30,99,.25)"}}>{m.text}</div>
-:<div style={{background:glass,backdropFilter:"blur(16px)",border:`1px solid ${bdr}`,borderRadius:"20px 20px 20px 4px",boxShadow:`0 4px 20px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,overflow:"hidden"}}>
-<div style={{padding:"14px 16px 8px"}}><div style={{fontSize:14,fontWeight:500,fontFamily:"Georgia,serif",lineHeight:1.6}}>{m.pt}</div></div>
-<div style={{padding:"8px 16px 10px",background:dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)"}}><div style={{fontSize:13,color:T3,lineHeight:1.5}}>{m.en}</div></div>
-{(m.tip||m.fix)&&<div style={{padding:"0 16px 10px"}}>
-{m.tip&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(201,152,46,.08)":"rgba(255,248,225,.95)",borderRadius:10,border:"1px solid rgba(201,152,46,.15)",fontSize:12,color:dark?"#D4A027":"#7A5D00",lineHeight:1.5,display:"flex",gap:6}}><span>💡</span><span>{m.tip}</span></div>}
-{m.fix&&<div style={{marginTop:5,padding:"8px 12px",background:dark?"rgba(233,30,99,.06)":"rgba(252,228,236,.95)",borderRadius:10,border:"1px solid rgba(233,30,99,.12)",fontSize:12,color:"#AD1457",lineHeight:1.5,display:"flex",gap:6}}><span>✏️</span><span>{m.fix}</span></div>}</div>}
-<div style={{padding:"6px 16px 10px"}}><button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="b" style={{background:"none",fontSize:12,color:"#C2185B",padding:0,fontWeight:700}}>🔊 Hear it</button></div>
+:<div style={{background:glass,backdropFilter:"blur(16px)",border:`1px solid ${bdr}`,borderRadius:"20px 20px 20px 4px",boxShadow:`0 3px 14px ${dark?"rgba(0,0,0,.15)":"rgba(0,0,0,.04)"}`,overflow:"hidden"}}>
+<div style={{padding:"12px 14px 6px"}}><div style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.6,color:T1}}>{m.pt}</div></div>
+<div style={{padding:"4px 14px 8px"}}><div style={{fontSize:12,color:T3,lineHeight:1.4}}>{m.en}</div></div>
+{m.tip&&<div style={{margin:"0 10px 6px",padding:"7px 10px",background:dark?"rgba(76,175,80,.08)":"rgba(200,230,201,.6)",borderRadius:10,border:`1px solid ${dark?"rgba(76,175,80,.15)":"rgba(76,175,80,.2)"}`,fontSize:11,color:dark?"#81C784":"#2E7D32",lineHeight:1.5,display:"flex",gap:5}}><span>💡</span><span>{m.tip}</span></div>}
+{m.fix&&<div style={{margin:"0 10px 6px",padding:"7px 10px",background:dark?"rgba(56,142,60,.08)":"rgba(185,225,186,.5)",borderRadius:10,border:`1px solid ${dark?"rgba(56,142,60,.15)":"rgba(56,142,60,.2)"}`,fontSize:11,color:dark?"#A5D6A7":"#1B5E20",lineHeight:1.5,display:"flex",gap:5}}><span>✏️</span><span>{m.fix}</span></div>}
+<div style={{padding:"6px 16px 10px"}}><button onClick={()=>speakPT(m.pt,()=>setSpk(true),()=>setSpk(false))} className="b" style={{background:"none",fontSize:12,color:"#2E7D32",padding:0,fontWeight:700}}>🔊 Hear it</button></div>
 </div>}</div>)}
 {busy&&<div style={{display:"flex",gap:6,padding:12,alignSelf:"flex-start"}}>{[0,.15,.3].map(d=><div key={d} style={{width:7,height:7,borderRadius:"50%",background:T4,animation:`pulse 1s ${d}s infinite`}}/>)}</div>}
 {err&&<div style={{padding:"10px 14px",background:"rgba(198,40,40,.06)",border:"1px solid rgba(198,40,40,.12)",borderRadius:12,fontSize:13,color:"#C62828"}}>{err}</div>}
