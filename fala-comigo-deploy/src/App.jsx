@@ -78,7 +78,7 @@ level==="intermediate"?"INTERMEDIATE: Natural conversation. Mix PT/EN. Introduce
 const sys=`You are Bia, expert Brazilian Portuguese tutor from São Paulo. Warm, encouraging.
 RESPOND ONLY raw JSON: {"pt":"Portuguese","en":"English translation/explanation","tip":"tip or null","fix":"correction or null"}
 ${sc?`SCENARIO: ${sc.prompt} Stay in character.`:"FREE CHAT."} ${lv}
-CORRECTIONS: Explain WHY. Common mistakes: ser/estar, gender (o problema=masc), age=ter not ser, gostar DE, bom vs bem, excitado=aroused not excited.
+CORRECTIONS: Always rewrite their FULL sentence correctly, then explain why. Example fix: "→ Eu tenho 25 anos (use ter for age, not ser)". Common mistakes: ser/estar, gender (o problema=masc), age=ter not ser, gostar DE, bom vs bem, excitado=aroused not excited.
 PRONUNCIATION tips: D+i/e→j, T+i/e→ch, R/rr→h, Lh→ly, Nh→ny, final M→nasal, ão→nasal.
 Brazilian Portuguese ONLY. ${view==="voice"?"VOICE MODE: Extra short (1-2 sentences).":"Keep concise (1-3 sentences)."}`;
 const hist=msgs.slice(-16).map(m=>m.role==="u"?{role:"user",content:m.text}:{role:"assistant",content:JSON.stringify({pt:m.pt,en:m.en,tip:m.tip,fix:m.fix})});
@@ -99,8 +99,8 @@ const goHome=()=>{setView("home");setScenario(null);setMsgs([])};
 
 // Colors
 const T1=dark?"#e0e0e0":"#1a1a1a",T2=dark?"#bbb":"#555",T3=dark?"#888":"#888",T4=dark?"#666":"#999";
-const cbg=dark?"rgba(30,30,30,.92)":"rgba(255,255,255,.92)";const bdr=dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)";
-const glass=dark?"rgba(30,30,30,.85)":"rgba(255,255,255,.85)";
+const cbg=dark?"rgba(30,30,30,.92)":"rgba(245,250,240,.92)";const bdr=dark?"rgba(255,255,255,.08)":"rgba(0,0,0,.05)";
+const glass=dark?"rgba(30,30,30,.85)":"rgba(245,250,240,.85)";
 const lvC={beginner:"#4CAF50",intermediate:"#FF9800",advanced:"#E91E63"};
 
 // ═══ LOGIN ═══
@@ -236,7 +236,7 @@ style={{padding:"16px 14px",borderRadius:20,textAlign:"left",background:glass,ba
 {msgs.map(m=><div key={m.id} style={{alignSelf:m.role==="u"?"flex-end":"flex-start",maxWidth:m.role==="u"?"78%":"86%",animation:"fi .25s"}}>
 {m.role==="u"?<div style={{background:"linear-gradient(135deg,#0B4A3E,#1B6B56)",color:"#fff",padding:"12px 16px",borderRadius:"20px 20px 4px 20px",fontSize:15,lineHeight:1.5,boxShadow:"0 4px 16px rgba(11,74,62,.25)"}}>{m.text}</div>
 :<div style={{background:glass,backdropFilter:"blur(16px)",border:`1px solid ${bdr}`,borderRadius:"20px 20px 20px 4px",boxShadow:`0 4px 20px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,overflow:"hidden"}}>
-<div style={{padding:"14px 16px 8px"}}><div style={{fontSize:15,fontWeight:600,fontFamily:"Georgia,serif",lineHeight:1.6}}>{m.pt}</div></div>
+<div style={{padding:"14px 16px 8px"}}><div style={{fontSize:14,fontWeight:500,fontFamily:"Georgia,serif",lineHeight:1.6}}>{m.pt}</div></div>
 <div style={{padding:"8px 16px 10px",background:dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)"}}><div style={{fontSize:13,color:T3,lineHeight:1.5}}>{m.en}</div></div>
 {(m.tip||m.fix)&&<div style={{padding:"0 16px 10px"}}>
 {m.tip&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(201,152,46,.08)":"rgba(255,248,225,.95)",borderRadius:10,border:"1px solid rgba(201,152,46,.15)",fontSize:12,color:dark?"#D4A027":"#7A5D00",lineHeight:1.5,display:"flex",gap:6}}><span>💡</span><span>{m.tip}</span></div>}
@@ -275,7 +275,7 @@ boxShadow:voiceListening?"0 0 0 6px rgba(233,30,99,.2),0 8px 32px rgba(233,30,99
 {msgs.map(m=><div key={m.id} style={{alignSelf:m.role==="u"?"flex-end":"flex-start",maxWidth:m.role==="u"?"78%":"86%",animation:"fi .25s"}}>
 {m.role==="u"?<div style={{background:"linear-gradient(135deg,#C2185B,#E91E63)",color:"#fff",padding:"12px 16px",borderRadius:"20px 20px 4px 20px",fontSize:15,lineHeight:1.5,boxShadow:"0 4px 16px rgba(233,30,99,.25)"}}>{m.text}</div>
 :<div style={{background:glass,backdropFilter:"blur(16px)",border:`1px solid ${bdr}`,borderRadius:"20px 20px 20px 4px",boxShadow:`0 4px 20px ${dark?"rgba(0,0,0,.2)":"rgba(0,0,0,.06)"}`,overflow:"hidden"}}>
-<div style={{padding:"14px 16px 8px"}}><div style={{fontSize:15,fontWeight:600,fontFamily:"Georgia,serif",lineHeight:1.6}}>{m.pt}</div></div>
+<div style={{padding:"14px 16px 8px"}}><div style={{fontSize:14,fontWeight:500,fontFamily:"Georgia,serif",lineHeight:1.6}}>{m.pt}</div></div>
 <div style={{padding:"8px 16px 10px",background:dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)"}}><div style={{fontSize:13,color:T3,lineHeight:1.5}}>{m.en}</div></div>
 {(m.tip||m.fix)&&<div style={{padding:"0 16px 10px"}}>
 {m.tip&&<div style={{marginTop:6,padding:"8px 12px",background:dark?"rgba(201,152,46,.08)":"rgba(255,248,225,.95)",borderRadius:10,border:"1px solid rgba(201,152,46,.15)",fontSize:12,color:dark?"#D4A027":"#7A5D00",lineHeight:1.5,display:"flex",gap:6}}><span>💡</span><span>{m.tip}</span></div>}
